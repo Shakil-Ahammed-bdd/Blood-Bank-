@@ -1,0 +1,63 @@
+import { useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import AuthField from '../components/auth/AuthField'
+import AuthLayout from '../components/auth/AuthLayout'
+import { useAuth } from '../contexts/useAuth'
+
+function LoginPage() {
+  const [identifier, setIdentifier] = useState('')
+  const [password, setPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const { login } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    const errors = {}
+    if (!identifier.trim()) errors.identifier = 'ইমেইল বা User ID লিখুন।'
+    if (!password) errors.password = 'পাসওয়ার্ড লিখুন।'
+    setFieldErrors(errors)
+    if (Object.keys(errors).length) return
+
+    setLoading(true)
+    setError('')
+    try {
+      await login({ identifier: identifier.trim(), password })
+      navigate(location.state?.from?.pathname || '/dashboard', { replace: true })
+    } catch (requestError) {
+      setError(requestError.message)
+      setFieldErrors(requestError.fieldErrors || {})
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AuthLayout
+      eyebrow="স্বাগতম"
+      subtitle="আপনার অ্যাকাউন্টে প্রবেশ করে দাতা কমিউনিটির সঙ্গে যুক্ত থাকুন।"
+      title="লগ ইন"
+    >
+      <form className="auth-form" noValidate onSubmit={handleSubmit}>
+        {error && <p aria-live="polite" className="auth-alert" role="alert">{error}</p>}
+        <AuthField autoComplete="username" error={fieldErrors.identifier} label="ইমেইল বা User ID" name="identifier" onChange={(event) => { setIdentifier(event.target.value); setFieldErrors({}); setError('') }} placeholder="name@example.com অথবা AHB-1234567890ABCDEF" required value={identifier} />
+        <div className="auth-password-field">
+          <AuthField autoComplete="current-password" error={fieldErrors.password} label="পাসওয়ার্ড" name="password" onChange={(event) => { setPassword(event.target.value); setFieldErrors((current) => ({ ...current, password: undefined })); setError('') }} required type={showPassword ? 'text' : 'password'} value={password} />
+          <button aria-label={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখান'} className="password-toggle" onClick={() => setShowPassword((visible) => !visible)} type="button">
+            {showPassword ? 'লুকান' : 'দেখুন'}
+          </button>
+        </div>
+        <button className="auth-submit" disabled={loading} type="submit">
+          {loading ? 'লগ ইন হচ্ছে…' : 'লগ ইন করুন'}
+        </button>
+        <p className="auth-switch">অ্যাকাউন্ট নেই? <Link to="/register">নতুন দাতা হিসেবে নিবন্ধন করুন</Link></p>
+      </form>
+    </AuthLayout>
+  )
+}
+
+export default LoginPage

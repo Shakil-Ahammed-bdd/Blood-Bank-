@@ -1,0 +1,431 @@
+:root {
+  color-scheme: dark;
+  color: #f4f4f5;
+  background: #080a10;
+  font-family: Inter, "Noto Sans Bengali", "Hind Siliguri", "Nirmala UI", sans-serif;
+  --ink: #f4f4f5;
+  --muted: #a1a1aa;
+  --red: #ec2633;
+  --red-dark: #cf1e2b;
+  --cream: #0d1017;
+  --line: #272b35;
+  --surface: #11141c;
+  --surface-raised: #171a23;
+  --surface-light: #f8f8fa;
+  --text-light-surface: #1c1d22;
+  --border-light-surface: #e5e6ea;
+  --shadow-card: 0 18px 48px rgb(0 0 0 / 24%);
+}
+
+html {
+  background: #080a10;
+}
+
+body,
+button,
+a {
+  font-family: Inter, "Noto Sans Bengali", "Hind Siliguri", "Nirmala UI", sans-serif;
+}
+
+body {
+  color: #f4f4f5;
+  background: #080a10;
+}
+
+.site-header {
+  border-bottom-color: #1f222c;
+  background: rgb(8 10 16 / 94%);
+}
+
+.brand-name,
+.brand-name span:first-child {
+  color: #f4f4f5;
+}
+
+.brand-name span:first-child {
+  color: #ff4b55;
+}
+
+.brand-mark {
+  border-color: rgb(255 255 255 / 10%);
+  box-shadow: 0 5px 18px rgb(0 0 0 / 28%);
+}
+
+.nav-link {
+  color: #c0c1c7;
+}
+
+.nav-link:hover,
+.nav-link:focus-visible {
+  color: #fff;
+}
+
+.nav-donate,
+.button-primary {
+  background: #ec2633;
+  border-color: #ec2633;
+  box-shadow: 0 8px 22px rgb(236 38 51 / 22%);
+}
+
+.nav-donate:hover,
+.button-primary:hover {
+  background: #cf1e2b;
+  border-color: #cf1e2b;
+  box-shadow: 0 10px 26px rgb(236 38 51 / 32%);
+}
+
+.menu-toggle {
+  border-color: #303440;
+  background: #151821;
+}
+
+.menu-toggle span {
+  background: #f4f4f5;
+}
+
+.primary-nav {
+  background: #0d1017;
+}
+
+.primary-nav.is-open {
+  border-bottom-color: #272b35;
+  box-shadow: 0 18px 36px rgb(0 0 0 / 40%);
+}
+
+.nav-link {
+  border-bottom-color: #242833;
+}
+
+.hero-section {
+  background:
+    radial-gradient(ellipse at 79% 51%, rgb(132 18 33 / 20%) 0, transparent 39%),
+    radial-gradient(ellipse at 10% 90%, rgb(112 16 30 / 10%) 0, transparent 30%),
+    linear-gradient(112deg, #090b11 0%, #0c0e15 58%, #101018 100%);
+}
+
+.hero-section::before {
+  border-color: rgb(236 38 51 / 10%);
+}
+
+.hero-eyebrow {
+  border-color: rgb(236 38 51 / 28%);
+  background: rgb(236 38 51 / 10%);
+  color: #ff9ca2;
+}
+
+.eyebrow-mark,
+.button-heart {
+  background: rgb(236 38 51 / 16%);
+  color: #ff515b;
+}
+
+.hero-copy h1 {
+  color: #f6f6f8;
+}
+
+.hero-copy h1 span {
+  color: #f33440;
+}
+
+.hero-description {
+  color: #b0b1ba;
+}
+
+.button-secondary {
+  border-color: #383b46;
+  background: #151821;
+  color: #eeeef1;
+}
+
+.button-secondary:hover {
+  border-color: #5b5e69;
+  background: #1a1e28;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 28%);
+}
+
+.hero-note {
+  color: #9c9da6;
+}
+
+.note-line {
+  background: #70424a;
+}
+
+.note-dot,
+.hero-bottom-rule {
+  background-color: #ec2633;
+}
+
+.art-orbit {
+  border-color: rgb(248 248 250 / 9%);
+}
+
+.art-orbit-two {
+  border-color: rgb(236 38 51 / 22%);
+}
+
+.art-sun {
+  background:
+    radial-gradient(circle at 50% 48%, rgb(190 30 47 / 24%), rgb(115 23 39 / 11%) 58%, transparent 72%);
+  box-shadow: none;
+}
+
+.donation-illustration {
+  filter: drop-shadow(0 22px 30px rgb(0 0 0 / 34%));
+}
+
+.art-caption {
+  border-color: #30323d;
+  background: rgb(20 22 30 / 96%);
+  box-shadow: 0 16px 38px rgb(0 0 0 / 34%);
+}
+
+.caption-heart {
+  background: rgb(236 38 51 / 15%);
+  color: #ff515b;
+}
+
+.art-caption strong {
+  color: #f4f4f5;
+}
+
+.art-caption small {
+  color: #aaaab3;
+}
+
+.art-spark {
+  color: #e34a55;
+}
+
+.art-spark-two {
+  color: #a77d84;
+}
+
+.section {
+  color: #f4f4f5;
+  background: #090b11;
+}
+
+.search-section,
+.request-section,
+.groups-section,
+.impact-section {
+  background: #090b11;
+}
+
+.process-section {
+  background: #0d1017;
+}
+
+.section-kicker {
+  color: #ff505a;
+}
+
+.section-heading h2 {
+  color: #f4f4f5;
+}
+
+.section-heading h2 span {
+  color: #f33a45;
+}
+
+.section-heading > p {
+  color: #a4a5ae;
+}
+
+.search-panel {
+  color-scheme: light;
+  border-color: #e4e5e9;
+  background: #f8f8fa;
+  box-shadow: 0 22px 55px rgb(0 0 0 / 30%);
+  color: #202127;
+}
+
+.search-panel-top h3,
+.form-field {
+  color: #25262d;
+}
+
+.search-panel-top p {
+  color: #73747d;
+}
+
+.search-icon {
+  background: #ffebed;
+  color: #e92332;
+}
+
+.form-field input,
+.form-field select {
+  border-color: #dfe1e6;
+  background: #fff;
+  color: #32333a;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  border-color: #ec2633;
+  box-shadow: 0 0 0 3px rgb(236 38 51 / 12%);
+}
+
+.form-field select:disabled {
+  border-color: #e6e7eb;
+  background: #f0f1f4;
+  color: #92939b;
+}
+
+.form-field input::placeholder {
+  color: #92939b;
+}
+
+.search-note {
+  color: #777983;
+}
+
+.search-note.has-notice {
+  color: #a9212d;
+}
+
+.request-card {
+  background:
+    radial-gradient(ellipse at 78% 48%, rgb(255 255 255 / 9%), transparent 35%),
+    linear-gradient(115deg, #a91828 0%, #d51e2e 56%, #e12b36 100%);
+  box-shadow: 0 24px 60px rgb(185 24 41 / 20%);
+}
+
+.request-button {
+  border-color: #fff;
+  background: #fff;
+  color: #af1626;
+}
+
+.request-button:hover {
+  background: #f4f4f5;
+}
+
+.process-card,
+.blood-group-card {
+  border-color: #292c36;
+  background: #11141c;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 19%);
+}
+
+.process-card:hover,
+.blood-group-card:hover {
+  border-color: rgb(236 38 51 / 52%);
+  background: #171922;
+  box-shadow: 0 18px 38px rgb(0 0 0 / 32%);
+}
+
+.process-icon,
+.group-drop {
+  background: rgb(236 38 51 / 13%);
+  color: #ff505a;
+}
+
+.process-number {
+  color: #656773;
+}
+
+.process-card h3,
+.blood-group-card strong {
+  color: #f0f0f3;
+}
+
+.process-card > p {
+  color: #a5a6af;
+}
+
+.process-connector {
+  border-color: #343640;
+  background: #151821;
+  color: #f05059;
+}
+
+.process-disclaimer {
+  color: #92939d;
+}
+
+.group-label {
+  color: #9c9da6;
+}
+
+.impact-panel {
+  color-scheme: light;
+  border-color: #e3e4e9;
+  background:
+    radial-gradient(ellipse at 92% 5%, rgb(236 38 51 / 8%), transparent 34%),
+    #f6f6f8;
+  box-shadow: 0 20px 54px rgb(0 0 0 / 26%);
+  color: #202127;
+}
+
+.impact-panel > .section-heading h2 {
+  color: #24252b;
+}
+
+.impact-panel > .section-heading > p {
+  color: #666873;
+}
+
+.impact-panel > .section-heading .section-kicker {
+  color: #d71f2e;
+}
+
+.impact-metric + .impact-metric {
+  border-left-color: #dedfe4;
+}
+
+.impact-icon {
+  background: #ffebed;
+  color: #e92332;
+}
+
+.impact-metric strong {
+  color: #d91f2d;
+}
+
+.impact-label {
+  color: #35363d;
+}
+
+.impact-metric small,
+.impact-disclaimer {
+  color: #767781;
+}
+
+.button:focus-visible,
+.nav-donate:focus-visible,
+.nav-link:focus-visible,
+.menu-toggle:focus-visible,
+.blood-group-card:focus-visible {
+  outline: 3px solid rgb(255 75 85 / 70%);
+  outline-offset: 3px;
+}
+
+.health-status-card,
+.health-card {
+  color: var(--ink);
+}
+
+@media (max-width: 1024px) {
+  .primary-nav {
+    background: #0d1017;
+  }
+}
+
+@media (max-width: 700px) {
+  .impact-metric:nth-child(even) {
+    border-left-color: #dedfe4;
+  }
+
+  .impact-metric:nth-child(n + 3) {
+    border-top-color: #dedfe4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
