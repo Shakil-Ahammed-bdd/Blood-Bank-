@@ -1,19 +1,34 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import DonorExperienceCard from '../components/landing/DonorExperienceCard'
 import { donorApi } from '../services/api/donorApi'
 
 function DonorProfilePage() {
   const { id } = useParams()
   const [state, setState] = useState({ id: null, donor: null, loading: true, error: '' })
+  const [postsState, setPostsState] = useState({ id: null, posts: [], loading: true, error: '' })
 
   useEffect(() => {
     let active = true
     donorApi.get(id).then(
-      ({ donor: profile }) => {
+      ({ user: profile }) => {
         if (active) setState({ id, donor: profile, loading: false, error: '' })
       },
       (requestError) => {
         if (active) setState({ id, donor: null, loading: false, error: requestError.message })
+      },
+    )
+    return () => { active = false }
+  }, [id])
+
+  useEffect(() => {
+    let active = true
+    donorApi.experiences(id).then(
+      ({ experiences: posts }) => {
+        if (active) setPostsState({ id, posts, loading: false, error: '' })
+      },
+      (requestError) => {
+        if (active) setPostsState({ id, posts: [], loading: false, error: requestError.message })
       },
     )
     return () => { active = false }
@@ -43,32 +58,71 @@ function DonorProfilePage() {
             <article className="public-donor-profile">
               <header className="public-donor-profile-heading">
                 <span aria-hidden="true" className="donor-avatar">
-                  {donor.fullName.trim().split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join('')}
+                  {donor.profilePhotoUrl
+                    ? <img alt="" src={donor.profilePhotoUrl} />
+                    : donor.fullName.trim().split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join('')}
                 </span>
                 <div>
-                  <span className="section-kicker">পাবলিক দাতা প্রোফাইল</span>
-                  <h1 id="public-donor-profile-title">{donor.fullName}</h1>
-                  <p>User ID: {donor.userId}</p>
-                  <span className={`donor-availability${donor.isDonorAvailable ? ' is-available' : ''}`}>
-                    <span aria-hidden="true" className="donor-status-dot" />
-                    {donor.isDonorAvailable ? 'রক্তদানে প্রস্তুত' : 'এই মুহূর্তে প্রস্তুত নন'}
+                  <span className="section-kicker">
+                    {donor.limitedPublicProfile ? 'কমিউনিটি সদস্য' : 'পাবলিক দাতা প্রোফাইল'}
                   </span>
+                  <h1 id="public-donor-profile-title">{donor.fullName}</h1>
+                  {!donor.limitedPublicProfile && <p>User ID: {donor.userId}</p>}
+                  {!donor.limitedPublicProfile && (
+                    <span className={`donor-availability${donor.isDonorAvailable ? ' is-available' : ''}`}>
+                      <span aria-hidden="true" className="donor-status-dot" />
+                      {donor.isDonorAvailable ? 'রক্তদানে প্রস্তুত' : 'এই মুহূর্তে প্রস্তুত নন'}
+                    </span>
+                  )}
                 </div>
               </header>
-              <div aria-label={`রক্তের গ্রুপ ${donor.bloodGroup}`} className="donor-group-banner">
-                <strong>{donor.bloodGroup}</strong>
-                <span>রক্তের গ্রুপ</span>
-              </div>
-              <dl className="donor-card-details">
-                <div><dt>বিভাগ</dt><dd>{donor.division}</dd></div>
-                <div><dt>জেলা</dt><dd>{donor.district}</dd></div>
-                <div><dt>এলাকা / অবস্থান</dt><dd>{donor.location}</dd></div>
-                {registeredAt && <div><dt>নিবন্ধনের তারিখ</dt><dd>{registeredAt}</dd></div>}
-              </dl>
+              {!donor.limitedPublicProfile && (
+                <>
+                  <div aria-label={`রক্তের গ্রুপ ${donor.bloodGroup}`} className="donor-group-banner">
+                    <strong>{donor.bloodGroup}</strong>
+                    <span>রক্তের গ্রুপ</span>
+                  </div>
+                  <dl className="donor-card-details">
+                    <div><dt>বিভাগ</dt><dd>{donor.division}</dd></div>
+                    <div><dt>জেলা</dt><dd>{donor.district}</dd></div>
+                    <div><dt>এলাকা / অবস্থান</dt><dd>{donor.location}</dd></div>
+                    {registeredAt && <div><dt>নিবন্ধনের তারিখ</dt><dd>{registeredAt}</dd></div>}
+                  </dl>
+                </>
+              )}
               <p className="public-donor-privacy">
-                এই দাতা পাবলিক প্রোফাইল প্রকাশে সম্মতি দিয়েছেন। ব্যক্তিগত যোগাযোগের তথ্য গোপন রাখা হয়েছে।
+                {donor.limitedPublicProfile
+                  ? 'এই সদস্য মন্তব্যে নিজের নাম ও ছবি প্রকাশ করেছেন; অতিরিক্ত প্রোফাইল তথ্য ব্যক্তিগত রাখা হয়েছে।'
+                  : 'এই দাতা পাবলিক প্রোফাইল প্রকাশে সম্মতি দিয়েছেন। ব্যক্তিগত যোগাযোগের তথ্য গোপন রাখা হয়েছে।'}
               </p>
             </article>
+          )}
+          {!loading && donor && (
+            <section aria-labelledby="public-donor-experiences-title" className="public-donor-experiences">
+              <header className="profile-experiences-heading">
+                <div>
+                  <span className="section-kicker">রক্তদানের গল্প</span>
+                  <h2 id="public-donor-experiences-title">আমার অনুভূতি</h2>
+                </div>
+                <Link className="button button-secondary" to="/donor-experiences">সব অনুভূতি</Link>
+              </header>
+              {postsState.id !== id || postsState.loading ? (
+                <p className="experience-state" role="status">দাতার পোস্ট লোড হচ্ছে…</p>
+              ) : postsState.error ? (
+                <p className="experience-state" role="alert">দাতার পোস্ট এখন লোড করা যাচ্ছে না।</p>
+              ) : postsState.posts.length === 0 ? (
+                <p className="experience-state" role="status">এই দাতার কোনো প্রকাশিত অনুভূতি নেই।</p>
+              ) : (
+                <div className="experience-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {postsState.posts.map((experience) => (
+                    <DonorExperienceCard
+                      experience={experience}
+                      key={`${experience.id}:${experience.updatedAt}:${experience.reactionCount}:${experience.commentCount}:${experience.currentReaction}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           )}
         </div>
       </section>

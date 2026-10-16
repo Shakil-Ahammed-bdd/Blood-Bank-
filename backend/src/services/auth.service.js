@@ -3,6 +3,7 @@ const { randomBytes } = require('node:crypto')
 const mongoose = require('mongoose')
 const User = require('../models/User')
 const HttpError = require('../errors/http-error')
+const { isExperienceModerator } = require('../config/experience-moderators')
 
 const PASSWORD_ROUNDS = 12
 
@@ -25,7 +26,9 @@ function toPublicUser(user) {
     location: user.location,
     isDonorAvailable: user.isDonorAvailable,
     isSearchable: user.isSearchable,
+    profilePhotoUrl: user.profilePhotoUrl || '',
     createdAt: user.createdAt,
+    isExperienceModerator: isExperienceModerator(user),
   }
 }
 

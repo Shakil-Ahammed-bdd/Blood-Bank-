@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const Experience = require('../models/Experience')
 
 async function connectDatabase(uri) {
   if (!uri) {
@@ -8,6 +9,10 @@ async function connectDatabase(uri) {
 
   try {
     await mongoose.connect(uri)
+    await Experience.collection.updateMany(
+      { isPublic: { $exists: false } },
+      [{ $set: { isPublic: { $eq: ['$publicConsent', true] } } }],
+    )
     console.info('Connected to MongoDB.')
     return true
   } catch (error) {

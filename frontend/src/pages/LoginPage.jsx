@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import AuthField from '../components/auth/AuthField'
 import AuthLayout from '../components/auth/AuthLayout'
 import { useAuth } from '../contexts/useAuth'
@@ -12,7 +12,6 @@ function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const { login } = useAuth()
-  const location = useLocation()
   const navigate = useNavigate()
 
   async function handleSubmit(event) {
@@ -27,7 +26,10 @@ function LoginPage() {
     setError('')
     try {
       await login({ identifier: identifier.trim(), password })
-      navigate(location.state?.from?.pathname || '/dashboard', { replace: true })
+      navigate('/', {
+        replace: true,
+        state: { notice: 'লগ ইন সফল হয়েছে। স্বাগতম!' },
+      })
     } catch (requestError) {
       setError(requestError.message)
       setFieldErrors(requestError.fieldErrors || {})

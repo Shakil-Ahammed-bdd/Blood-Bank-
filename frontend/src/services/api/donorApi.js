@@ -8,5 +8,7 @@ export const donorApi = {
     })
     return apiRequest(`/donors?${query}`)
   },
-  get: (id) => apiRequest(`/donors/${encodeURIComponent(id)}`),
+  get: (id) => apiRequest(`/users/${encodeURIComponent(id)}/profile`),
+  experiences: (id, { page = 1, limit = 9 } = {}) =>
+    apiRequest(`/users/${encodeURIComponent(id)}/experiences?page=${page}&limit=${limit}`),
 }

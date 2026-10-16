@@ -270,7 +270,8 @@
 }
 
 .profile-actions .auth-submit,
-.profile-actions .auth-secondary {
+.profile-actions .auth-secondary,
+.profile-actions .auth-danger {
   grid-column: auto;
 }
 

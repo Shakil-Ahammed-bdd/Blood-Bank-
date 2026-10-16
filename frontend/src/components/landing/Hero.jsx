@@ -1,4 +1,5 @@
 import HeroIllustration from './HeroIllustration'
+import { Link } from 'react-router-dom'
 
 function Hero() {
   return (
@@ -26,6 +27,9 @@ function Hero() {
               <span aria-hidden="true" className="button-heart">＋</span>
               রক্ত প্রয়োজন?
             </a>
+            <Link className="button button-secondary" to="/donor-experiences">
+              রক্তদাতার অনুভূতি
+            </Link>
           </div>
           <div className="hero-note">
             <span aria-hidden="true" className="note-line" />

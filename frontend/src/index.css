@@ -810,3 +810,247 @@ a {
     transition-duration: .01ms !important;
   }
 }
+
+.desktop-nav-actions,
+.nav-guest-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-login-link,
+.nav-register-link {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border: 1px solid var(--red);
+  border-radius: 9px;
+  color: var(--red-dark);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-register-link {
+  background: var(--red);
+  color: white;
+}
+
+.nav-profile {
+  position: relative;
+}
+
+.nav-profile-trigger {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 10px 4px 5px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: white;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.nav-avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ec2633;
+  color: white;
+  font-weight: 800;
+}
+
+.nav-profile-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-profile-chevron {
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.profile-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 9px);
+  right: 0;
+  display: grid;
+  width: 190px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 16px 40px rgb(28 25 23 / 16%);
+}
+
+.profile-menu-link {
+  display: block;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+}
+
+.profile-menu-link:hover,
+.profile-menu-link:focus-visible {
+  outline: none;
+  background: #fff1f1;
+  color: var(--red-dark);
+}
+
+.profile-menu-logout,
+.mobile-logout {
+  color: #b91c2b;
+}
+
+.profile-menu-error {
+  margin: 5px 8px 8px;
+  color: #b91c2b;
+  font-size: 12px;
+}
+
+.mobile-profile-links,
+.mobile-auth-links {
+  display: none;
+}
+
+.mobile-profile-trigger {
+  display: none;
+}
+
+.home-notice {
+  position: fixed;
+  z-index: 25;
+  top: 104px;
+  right: 20px;
+  max-width: min(460px, calc(100vw - 40px));
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid rgb(77 190 133 / 45%);
+  border-radius: 12px;
+  background: #101a16;
+  box-shadow: 0 14px 36px rgb(0 0 0 / 24%);
+  color: #b3f0cd;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.auth-danger {
+  display: inline-flex;
+  min-height: 46px;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid #7f1d27;
+  border-radius: 9px;
+  background: #35151a;
+  color: #ff9da4;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.auth-danger:hover:not(:disabled) {
+  border-color: #ec2633;
+  background: #4a171e;
+}
+
+.auth-danger:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+@media (max-width: 1024px) {
+  .desktop-nav-actions {
+    display: none;
+  }
+
+  .mobile-profile-trigger {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 44px;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 8px 3px 3px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: white;
+    color: var(--ink);
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .mobile-profile-trigger .nav-avatar {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    font-size: 12px;
+  }
+
+  .mobile-header-name {
+    max-width: 100px;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .primary-nav.is-open {
+    max-height: 760px;
+  }
+
+  .mobile-profile-links,
+  .mobile-auth-links {
+    display: grid;
+  }
+
+  .mobile-profile-name {
+    padding: 13px 0 7px;
+    color: var(--red-dark);
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .mobile-logout {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .mobile-donate {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-notice {
+    top: 82px;
+    right: 12px;
+    max-width: calc(100vw - 24px);
+  }
+}

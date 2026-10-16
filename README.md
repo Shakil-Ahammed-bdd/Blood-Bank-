@@ -38,6 +38,8 @@ supported modern Node version).
 │       ├── controllers/
 │       │   ├── auth.controller.js
 │       │   ├── donor.controller.js
+│       │   ├── experience.controller.js
+│       │   ├── experience-social.controller.js
 │       │   ├── health.controller.js
 │       │   └── user.controller.js
 │       ├── config/
@@ -46,23 +48,35 @@ supported modern Node version).
 │       │   └── http-error.js
 │       ├── middleware/
 │       │   ├── authenticate.js
+│       │   ├── experience-upload.js
 │       │   ├── error-handler.js
+│       │   ├── optional-authenticate.js
+│       │   ├── profile-photo-upload.js
 │       │   └── verify-origin.js
 │       ├── models/
+│       │   ├── Experience.js
+│       │   ├── ExperienceComment.js
+│       │   ├── ExperienceReaction.js
 │       │   └── User.js
 │       ├── routes/
 │       │   ├── auth.routes.js
 │       │   ├── donor.routes.js
+│       │   ├── experience-comment.routes.js
+│       │   ├── experience.routes.js
 │       │   ├── health.routes.js
 │       │   └── user.routes.js
 │       ├── services/
 │       │   ├── auth.service.js
 │       │   ├── donor.service.js
+│       │   ├── experience-image-storage.js
+│       │   ├── experience-social.service.js
+│       │   ├── experience.service.js
 │       │   ├── health.service.js
 │       │   └── user.service.js
 │       └── utils/
 │           ├── auth-validation.js
-│           └── bangladesh-locations.js
+│           ├── bangladesh-locations.js
+│           └── experience-validation.js
 └── frontend/
     ├── package.json
     ├── package-lock.json
@@ -90,6 +104,8 @@ supported modern Node version).
         │   │   ├── BloodRequest.jsx
         │   │   ├── BloodSearch.jsx
         │   │   ├── DonorCard.jsx
+        │   │   ├── DonorExperienceCard.jsx
+        │   │   ├── DonorExperiences.jsx
         │   │   ├── Hero.jsx
         │   │   ├── HeroIllustration.jsx
         │   │   ├── HowItWorks.jsx
@@ -111,7 +127,7 @@ supported modern Node version).
         ├── layouts/
         │   └── AppLayout.jsx
         ├── pages/
-        │   ├── DashboardPage.jsx
+        │           ├── ProfilePage.jsx
         │   ├── DonorProfilePage.jsx
         │   ├── DonorsPage.jsx
         │   ├── HomePage.jsx
@@ -122,6 +138,7 @@ supported modern Node version).
         │       ├── apiRequest.js
         │       ├── authApi.js
         │       ├── donorApi.js
+        │       ├── experienceApi.js
         │       ├── healthApi.js
         │       └── profileApi.js
         └── utils/
@@ -164,8 +181,9 @@ the current page does not import or depend on them.
 - `useApiHealth` owns request lifecycle, cancellation, and retry state;
   `healthApi` owns the HTTP request; `healthStatus` owns status labels.
 - `AuthProvider` bootstraps the signed-in user from `/api/auth/me` and exposes
-  registration, login, logout, refresh, and in-memory profile updates.
-  `ProtectedRoute` guards the dashboard; auth pages share `AuthLayout`,
+  registration, login, logout, account deletion, refresh, and in-memory profile
+  updates. `ProtectedRoute` guards `/profile`; `/dashboard` redirects there.
+  Auth pages share `AuthLayout`,
   `AuthField`, and `AuthSelect`.
 - `apiRequest` centralizes credentialed API requests and error parsing;
   `authApi`, `profileApi`, and `donorApi` provide domain-specific methods. The
@@ -208,11 +226,45 @@ the current page does not import or depend on them.
 - Reusable frontend health-check components and hook are retained; the current
   landing page does not display them.
 - MongoDB-backed donor registration; email or generated User ID login; current
-  user retrieval; logout; and a protected dashboard.
+  user retrieval; logout; and a protected personal profile.
+- Donor experiences have a dedicated `/donor-experiences` page. Submissions
+  include 1–5 optimized photos and explicit public consent, start as pending,
+  and appear publicly only after approval. Images are size/type checked and
+  stored on disk by a replaceable storage adapter; MongoDB stores only image
+  references. Configure `EXPERIENCE_IMAGE_DIR` when local uploads should live
+  outside the default backend uploads folder.
+- Experience moderation is restricted to accounts explicitly listed by their
+  generated Ahoban User ID or MongoDB ID in the backend-only
+  `EXPERIENCE_MODERATOR_USER_IDS` environment variable (comma-separated).
+  Moderators can review pending public stories from the donor-experience page;
+  unconfigured accounts cannot approve or reject stories.
+  To identify the currently signed-in account's MongoDB ID without displaying
+  other profile fields, run this in the browser console while signed in:
+  `fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json()).then(({ user }) => console.log(user.id))`.
+  Add that ID to the root `.env`, for example
+  `EXPERIENCE_MODERATOR_USER_IDS=<trusted-user-id>`, then restart the backend.
+  Multiple trusted accounts can be comma-separated. Do not add an account
+  unless its owner is trusted to review donor stories.
+- Each donor keeps one account/profile. Approved experiences appear both in
+  the public experience feed and on the author's public profile. A profile
+  photo is optional, uploaded through the authenticated profile endpoint, and
+  stored as an optimized WebP file outside MongoDB. Donors can also review all
+  of their own approved and pending posts on their private profile.
+- Approved public posts support one `like` or `love` reaction per user, with
+  repeat clicks toggling it off and changing type updating the same record.
+  Authenticated users can post comments, edit/delete their own comments, and
+  view paginated public comments. Public APIs expose counts and only safe
+  author fields; contact details and credentials are never serialized.
+- Public donor profiles continue to honor donor-search consent. A donor who
+  publishes an approved experience has a public profile with the information
+  consented to in that post; a donor who only comments on a public post gets a
+  limited name/photo profile while other profile details remain private.
 - Individual profile retrieval and editing for each authenticated user.
   Editable fields are name, phone, blood group, division, district, location,
   donor availability, and public-search consent. User ID and email are
   protected from profile updates.
+- Profile deletion requires explicit confirmation, deletes only the
+  authenticated user's account, and clears the session cookie.
 - Donor search requires explicit opt-in. Public donor cards and profile
   responses contain only name, User ID, blood group, division, district,
   location, and availability; email and phone remain private.
@@ -244,13 +296,36 @@ the current page does not import or depend on them.
 | `GET` | `/api/auth/me` | Returns the authenticated user's safe profile; requires a valid session cookie. |
 | `POST` | `/api/auth/logout` | Clears the session cookie. |
 | `GET` | `/api/users/profile` | Returns the signed-in user's profile; requires a valid session cookie. |
+| `PUT` | `/api/users/profile/photo` | Authenticated one-photo profile image upload; accepts JPG, PNG, or WebP up to 5 MB. |
 | `PATCH` | `/api/users/profile` | Updates allowed fields on the signed-in user's own profile; protected fields are rejected. |
+| `DELETE` | `/api/users/profile` | Permanently deletes the signed-in user's account and clears the session cookie. |
+| `GET` | `/api/users/:id/profile` | Returns a public, privacy-filtered donor profile by MongoDB ID or generated User ID. |
+| `GET` | `/api/experiences/moderation/queue` | Lists pending public stories; requires authentication and moderator allowlisting. |
+| `PATCH` | `/api/experiences/:id/moderation` | Approves or rejects a pending public story; requires authentication and moderator allowlisting. |
+| `GET` | `/api/users/:id/experiences` | Lists that donor's approved, consented public experiences with pagination. |
+| `GET` | `/api/experiences` | Lists only experiences with `isPublic: true` and `status: approved`, newest post first, with bounded pagination. |
+| `GET` | `/api/experiences/:id` | Returns one approved, public experience. |
+| `GET` | `/api/experiences/mine` | Lists the authenticated user's experience submissions and moderation states. |
+| `POST` | `/api/experiences` | Authenticated multipart submission with donor-profile snapshot, 1–5 `photos` files and explicit public consent; starts pending review. |
+| `PATCH` | `/api/experiences/:id` | Updates the authenticated user's own experience and returns it to pending review. |
+| `DELETE` | `/api/experiences/:id` | Deletes only the authenticated user's own experience and stored photos. |
+| `GET` | `/api/experiences/:id/reactions` | Returns the public post's reaction count and the optional current user's reaction. |
+| `POST` | `/api/experiences/:id/reactions` | Authenticated `like`/`love` toggle; unique per user and post. |
+| `DELETE` | `/api/experiences/:id/reactions` | Removes the authenticated user's reaction from the post. |
+| `GET` | `/api/experiences/:id/comments` | Lists public comments with pagination and safe author/profile-photo data. |
+| `POST` | `/api/experiences/:id/comments` | Adds a validated comment as the authenticated user. |
+| `PATCH` | `/api/comments/:id` | Edits only the authenticated user's own comment. |
+| `DELETE` | `/api/comments/:id` | Deletes only the authenticated user's own comment. |
 | `GET` | `/api/donors` | Lists only donors who opted in to public search; filters by blood group, division, district, location, availability, page, and limit. |
-| `GET` | `/api/donors/:id` | Returns a discoverable donor's public profile by MongoDB ID or generated User ID. |
+| `GET` | `/api/donors/:id` | Returns an opted-in donor profile or a profile made public by an approved experience/comment. |
+| `*` | `/api/uploads/avatars/:filename` | Serves generated, optimized public-profile image files. |
 | `*` | Other paths | Returns a JSON 404 error. |
 
-Validation failures return HTTP 400 with `fieldErrors`; duplicate email returns
-409; invalid credentials and unauthenticated protected routes return 401.
+Experience submissions and updates include a stable `{ success, message, data }`
+response envelope while retaining the legacy response fields used by the
+current frontend. Validation failures return HTTP 400 with `errors` and the
+backward-compatible `fieldErrors`; duplicate email returns 409; invalid
+credentials and unauthenticated protected routes return 401.
 Unsearchable donor details return 404. Auth, profile, and donor operations
 return 503 while MongoDB is unavailable.
 
@@ -271,6 +346,24 @@ blood group, division, district, location, donor availability, public-search
 consent, `passwordHash`, and Mongoose timestamps. Unique indexes protect email
 and user ID; a compound index supports donor filtering. `passwordHash` is
 excluded from normal queries and is never included in API responses.
+
+`Experience` stores the authenticated user reference, a donor profile snapshot,
+message, donation date, optional donation count and location, public-visibility
+consent, one to five optimized image URLs, and moderation status. Only records
+with both `isPublic: true` and `status: approved` appear publicly. At database
+connection, documents from the earlier `publicConsent` field are migrated to
+the canonical `isPublic` field. Older records with a single
+`photoUrl` remain readable during the image-array migration. The donor location
+is optional so older accounts without that profile field can still submit an
+experience.
+
+`User.profilePhotoUrl` references an optional optimized WebP avatar in local
+image storage. `ExperienceReaction` stores a user, experience, and `like` or
+`love` type with a unique compound index on `(userId, experienceId)`, ensuring
+one active reaction per user per post. `ExperienceComment` stores a user,
+experience, bounded comment text, and timestamps; its `(experienceId,
+createdAt)` index supports chronological pagination. Deleting an experience or
+account also removes its related reactions, comments, and stored images.
 
 New accounts default to unavailable and hidden from public search unless the
 registrant explicitly enables the corresponding preferences. The search API
@@ -297,6 +390,7 @@ Edit the root `.env` and provide:
 | `MONGODB_URI` | MongoDB connection string, for example `mongodb://127.0.0.1:27017/blood-bank`. |
 | `JWT_SECRET` | Required, unique random value at least 32 bytes long. The API refuses to start with a missing, short, or example placeholder value. |
 | `CLIENT_URL` | Allowed browser origin for CORS; defaults to `http://localhost:5173`. |
+| `EXPERIENCE_IMAGE_DIR` | Optional local directory for donor experience photos; defaults to `backend/uploads/experiences`. |
 
 Generate a development secret in PowerShell and set the output as `JWT_SECRET`
 in the root `.env`:

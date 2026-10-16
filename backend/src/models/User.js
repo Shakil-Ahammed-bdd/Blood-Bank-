@@ -58,6 +58,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    profilePhotoUrl: {
+      type: String,
+      default: '',
+      maxlength: 500,
+    },
     passwordHash: {
       type: String,
       required: true,

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 const User = require('../models/User')
 const HttpError = require('../errors/http-error')
+const { getPublicProfile } = require('./user.service')
 
 const BLOOD_GROUPS = new Set(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'])
 const DIVISIONS = require('../utils/bangladesh-locations')
@@ -31,6 +32,7 @@ function publicDonor(user) {
     district: user.district,
     location: user.location,
     isDonorAvailable: user.isDonorAvailable,
+    profilePhotoUrl: user.profilePhotoUrl || '',
     ...(user.createdAt ? { createdAt: user.createdAt } : {}),
   }
 }
@@ -104,7 +106,7 @@ async function searchDonors(query) {
   const sort = query.sort === 'recent' ? { createdAt: -1, _id: -1 } : { fullName: 1, _id: 1 }
   const [users, total] = await Promise.all([
     User.find(criteria)
-      .select('userId fullName bloodGroup division district location isDonorAvailable createdAt')
+      .select('userId fullName bloodGroup division district location isDonorAvailable profilePhotoUrl createdAt')
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
@@ -121,14 +123,14 @@ async function getDonor(identifier) {
   if (mongoose.connection.readyState !== 1) {
     throw new HttpError(503, 'DATABASE_UNAVAILABLE', 'Donor profiles are temporarily unavailable.')
   }
-  const query = mongoose.isValidObjectId(identifier)
-    ? { _id: identifier, isSearchable: true }
-    : { userId: identifier.toUpperCase(), isSearchable: true }
-  const user = await User.findOne(query)
-    .select('userId fullName bloodGroup division district location isDonorAvailable createdAt')
-    .lean()
-  if (!user) throw new HttpError(404, 'DONOR_NOT_FOUND', 'This donor profile is not public.')
-  return publicDonor({ ...user, id: String(user._id) })
+  try {
+    return await getPublicProfile(identifier)
+  } catch (error) {
+    if (error.code === 'PROFILE_NOT_FOUND') {
+      throw new HttpError(404, 'DONOR_NOT_FOUND', 'This donor profile is not public.')
+    }
+    throw error
+  }
 }
 
 module.exports = { getDonor, searchDonors }

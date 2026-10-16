@@ -70,9 +70,9 @@ function RegisterPage() {
     setError('')
     try {
       const user = await register(values)
-      navigate('/dashboard', {
+      navigate('/', {
         replace: true,
-        state: { message: `নিবন্ধন সম্পন্ন হয়েছে। আপনার User ID: ${user.userId}` },
+        state: { notice: `নিবন্ধন সফল হয়েছে। আপনার User ID: ${user.userId}` },
       })
     } catch (requestError) {
       setError(requestError.message)
