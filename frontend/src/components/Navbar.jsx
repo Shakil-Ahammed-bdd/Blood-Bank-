@@ -1,41 +1,71 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/useAuth'
+import { useLanguage } from '../contexts/useLanguage'
+import { translateErrorMessage } from '../contexts/translationUtils'
+import { scrollToSection } from '../utils/scrollToSection'
 
 const links = [
   { label: 'হোম', href: '#home' },
   { label: 'আমাদের সম্পর্কে', href: '#about' },
   { label: 'রক্ত খুঁজুন', href: '#find-blood' },
-  { label: 'রক্তের আবেদন', href: '#blood-request' },
   { label: 'রক্তদাতার অনুভূতি', href: '/donor-experiences' },
+  { label: 'navbar.topDonors', href: '/top-donors' },
 ]
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
+  const [openProfileLocation, setOpenProfileLocation] = useState('')
   const [logoutError, setLogoutError] = useState('')
+  const [avatarErrorUrl, setAvatarErrorUrl] = useState('')
+  const profileRef = useRef(null)
   const location = useLocation()
   const navigate = useNavigate()
+  const { language, t, toggleLanguage } = useLanguage()
   const { logout, status, user } = useAuth()
   const authenticated = status === 'authenticated'
   const homeHref = location.pathname === '/' ? '#home' : '/#home'
-  const initials = user?.fullName.trim().split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join('')
+  const currentLocation = `${location.pathname}${location.search}`
+  const profileOpen = openProfileLocation === currentLocation
+  const fullName = user?.fullName?.trim() || ''
+  const initials = fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => Array.from(part)[0]).join('')
+  const profilePhotoUrl = user?.profilePhotoUrl || ''
+  const avatarError = avatarErrorUrl === profilePhotoUrl
 
   useEffect(() => {
     function closeOnEscape(event) {
       if (event.key === 'Escape') {
         setMenuOpen(false)
-        setProfileOpen(false)
+        setOpenProfileLocation('')
       }
     }
 
+    function closeOnOutsideClick(event) {
+      if (!profileRef.current?.contains(event.target)) setOpenProfileLocation('')
+    }
+
     window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape)
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+    }
   }, [])
 
   function closeMenu() {
     setMenuOpen(false)
-    setProfileOpen(false)
+    setOpenProfileLocation('')
+  }
+
+  function handleSectionNavigation(event, hash) {
+    closeMenu()
+    if (location.pathname !== '/') return
+    event.preventDefault()
+    if (location.hash === hash) {
+      scrollToSection(hash.slice(1))
+      return
+    }
+    navigate({ pathname: '/', hash })
   }
 
   async function handleLogout() {
@@ -43,33 +73,17 @@ function Navbar() {
     try {
       await logout()
       closeMenu()
-      navigate('/', { replace: true, state: { notice: 'আপনি সফলভাবে লগ আউট করেছেন।' } })
+      navigate('/', { replace: true, state: { notice: t('আপনি সফলভাবে লগ আউট করেছেন।') } })
     } catch (error) {
-      setLogoutError(error.message)
+      setLogoutError(translateErrorMessage(error, t))
     }
-  }
-
-  function profileLinks(mobile = false) {
-    return (
-      <>
-        <Link className={mobile ? 'nav-link' : 'profile-menu-link'} onClick={closeMenu} role={mobile ? undefined : 'menuitem'} to="/profile">
-          My Profile
-        </Link>
-        <Link className={mobile ? 'nav-link' : 'profile-menu-link'} onClick={closeMenu} role={mobile ? undefined : 'menuitem'} to="/profile?edit=1">
-          Edit Profile
-        </Link>
-        <button className={mobile ? 'nav-link mobile-logout' : 'profile-menu-link profile-menu-logout'} onClick={handleLogout} role={mobile ? undefined : 'menuitem'} type="button">
-          Logout
-        </button>
-      </>
-    )
   }
 
   return (
     <header className="site-header">
       <div className="nav-shell">
         <Link
-          aria-label="আহ্বান রক্তদান সংস্থা — হোম"
+          aria-label={t('আহ্বান রক্তদান সংস্থা — হোম')}
           className="brand"
           onClick={closeMenu}
           to={homeHref}
@@ -84,106 +98,97 @@ function Navbar() {
             />
           </span>
           <span className="brand-name">
-            <span>আহ্বান</span>
-            <span>রক্তদান সংস্থা</span>
+            <span>{t('আহ্বান')}</span>
+            <span>{t('রক্তদান সংস্থা')}</span>
           </span>
         </Link>
 
         <nav
-          aria-label="প্রধান নেভিগেশন"
+          aria-label={t('প্রধান নেভিগেশন')}
           className={`primary-nav${menuOpen ? ' is-open' : ''}`}
           id="primary-navigation"
         >
           {links.map((link) => (
             link.href.startsWith('/') ? (
               <Link className="nav-link" key={link.href} onClick={closeMenu} to={link.href}>
-                {link.label}
+                {t(link.label)}
               </Link>
             ) : (
-              <a
+              <Link
                 className="nav-link"
-                href={location.pathname === '/' ? link.href : `/${link.href}`}
+                to={location.pathname === '/' ? link.href : `/${link.href}`}
                 key={link.href}
-                onClick={closeMenu}
+                onClick={link.href.startsWith('#')
+                  ? (event) => handleSectionNavigation(event, link.href)
+                  : closeMenu}
               >
-                {link.label}
-              </a>
+                {t(link.label)}
+              </Link>
             )
           ))}
-          {authenticated ? (
-            <div className="mobile-profile-links">
-              <span className="mobile-profile-name">{user.fullName}</span>
-              {profileLinks(true)}
-              {logoutError && <p className="profile-menu-error" role="alert">{logoutError}</p>}
-            </div>
-          ) : status === 'unauthenticated' ? (
-            <div className="mobile-auth-links">
-              <Link className="nav-link" onClick={closeMenu} to="/login">Login</Link>
-              <Link className="nav-link" onClick={closeMenu} to="/register">Registration</Link>
-            </div>
-          ) : null}
-          <Link
-            className="nav-donate mobile-donate"
-            onClick={closeMenu}
-            to="/register"
-          >
-            রক্ত দান করুন <span aria-hidden="true">↗</span>
-          </Link>
         </nav>
 
-        <div className="desktop-nav-actions">
-          <Link
-            className="nav-donate desktop-donate"
-            to="/register"
+        <div className="nav-account">
+          <button
+            aria-label={language === 'bn' ? 'Switch language to English' : 'ভাষা বাংলায় পরিবর্তন করুন'}
+            className="nav-language-toggle"
+            onClick={toggleLanguage}
+            type="button"
           >
-            রক্ত দান করুন <span aria-hidden="true">↗</span>
-          </Link>
+            {language === 'bn' ? 'English' : 'বাংলা'}
+          </button>
           {authenticated ? (
-            <div className="nav-profile">
+            <div className="nav-profile" ref={profileRef}>
               <button
+                aria-controls="profile-menu"
                 aria-expanded={profileOpen}
                 aria-haspopup="menu"
                 className="nav-profile-trigger"
-                onClick={() => setProfileOpen((open) => !open)}
+                onClick={() => setOpenProfileLocation((openLocation) => (
+                  openLocation === currentLocation ? '' : currentLocation
+                ))}
                 type="button"
               >
-                <span aria-hidden="true" className="nav-avatar">{initials}</span>
-                <span className="nav-profile-name">{user.fullName}</span>
+                <span aria-hidden="true" className="nav-avatar">
+                  {profilePhotoUrl && !avatarError
+                    ? <img alt="" onError={() => setAvatarErrorUrl(profilePhotoUrl)} src={profilePhotoUrl} />
+                    : initials || (
+                      <svg fill="none" viewBox="0 0 24 24">
+                        <circle cx="12" cy="8" r="3.4" />
+                        <path d="M5.5 20v-1.7a6.5 6.5 0 0 1 13 0V20" />
+                      </svg>
+                    )}
+                </span>
+                <span className="nav-profile-name">{fullName}</span>
                 <span aria-hidden="true" className="nav-profile-chevron">⌄</span>
               </button>
               {profileOpen && (
-                <div className="profile-menu" role="menu">
-                  {profileLinks()}
-                  {logoutError && <p className="profile-menu-error" role="alert">{logoutError}</p>}
+                <div className="profile-menu" id="profile-menu" role="menu">
+                  <Link className="profile-menu-link" onClick={closeMenu} role="menuitem" to="/profile">
+                    {t('প্রোফাইল')}
+                  </Link>
+                  <Link className="profile-menu-link" onClick={closeMenu} role="menuitem" to="/profile?edit=1">
+                    {t('প্রোফাইল সম্পাদনা')}
+                  </Link>
+                  <button className="profile-menu-link profile-menu-logout" onClick={handleLogout} role="menuitem" type="button">
+                    {t('লগ আউট')}
+                  </button>
+                  {logoutError && <p className="profile-menu-error" role="alert">{t(logoutError)}</p>}
                 </div>
               )}
             </div>
           ) : status === 'unauthenticated' ? (
             <div className="nav-guest-actions">
-              <Link className="nav-login-link" to="/login">Login</Link>
-              <Link className="nav-register-link" to="/register">Registration</Link>
+              <Link className="nav-login-link" to="/login">{t('লগ ইন')}</Link>
+              <Link className="nav-register-link" to="/register">{t('নিবন্ধন')}</Link>
             </div>
           ) : null}
         </div>
 
-        {authenticated && (
-          <button
-            aria-controls="primary-navigation"
-            aria-expanded={menuOpen}
-            aria-label={`প্রোফাইল মেনু, ${user.fullName}`}
-            className="mobile-profile-trigger"
-            onClick={() => setMenuOpen((open) => !open)}
-            type="button"
-          >
-            <span aria-hidden="true" className="nav-avatar">{initials}</span>
-            <span className="mobile-header-name">{user.fullName}</span>
-          </button>
-        )}
-
         <button
           aria-controls="primary-navigation"
           aria-expanded={menuOpen}
-          aria-label={menuOpen ? 'মেনু বন্ধ করুন' : 'মেনু খুলুন'}
+          aria-label={menuOpen ? t('মেনু বন্ধ করুন') : t('মেনু খুলুন')}
           className={`menu-toggle${menuOpen ? ' is-open' : ''}`}
           onClick={() => setMenuOpen((open) => !open)}
           type="button"

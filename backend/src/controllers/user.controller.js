@@ -4,11 +4,12 @@ const {
   deleteProfile,
   getProfile,
   getPublicProfile,
+  logDonationDate,
   updateProfile,
   updateProfilePhoto,
 } = require('../services/user.service')
 const experienceService = require('../services/experience.service')
-const { validateProfileUpdate } = require('../utils/auth-validation')
+const { validateDonationDate, validateProfileUpdate } = require('../utils/auth-validation')
 
 async function readProfile(req, res, next) {
   try {
@@ -57,6 +58,16 @@ async function editProfile(req, res, next) {
   }
 }
 
+async function addDonationDate(req, res, next) {
+  try {
+    const donationDate = validateDonationDate(req.body)
+    const user = await logDonationDate(req.user.id, donationDate)
+    res.json({ status: 'ok', message: 'Donation date recorded.', user })
+  } catch (error) {
+    next(error)
+  }
+}
+
 async function editProfilePhoto(req, res, next) {
   try {
     const user = await updateProfilePhoto(req.user.id, req.file)
@@ -77,6 +88,7 @@ async function removeProfile(req, res, next) {
 }
 
 module.exports = {
+  addDonationDate,
   editProfile,
   editProfilePhoto,
   readProfile,

@@ -16,11 +16,13 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       if (version === requestVersion.current) {
-        setState(
-          error.status === 401
-            ? { status: 'unauthenticated', user: null, error: null }
-            : { status: 'error', user: null, error },
-        )
+        setState((current) => {
+          if (error.status === 401) {
+            return { status: 'unauthenticated', user: null, error: null }
+          }
+          if (current.user) return { ...current, status: 'authenticated', error: null }
+          return { status: 'error', user: null, error }
+        })
       }
     }
   }, [])
@@ -35,17 +37,18 @@ export function AuthProvider({ children }) {
       },
       (error) => {
         if (version === requestVersion.current) {
-          setState(
-            error.status === 401
-              ? { status: 'unauthenticated', user: null, error: null }
-              : { status: 'error', user: null, error },
-          )
+          setState((current) => {
+            if (error.status === 401) {
+              return { status: 'unauthenticated', user: null, error: null }
+            }
+            if (current.user) return { ...current, status: 'authenticated', error: null }
+            return { status: 'error', user: null, error }
+          })
         }
       },
     )
-
     return () => {
-      if (version === requestVersion.current) requestVersion.current += 1
+      if (requestVersion.current === version) requestVersion.current += 1
     }
   }, [])
 

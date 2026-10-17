@@ -1,11 +1,14 @@
 const { clearSession, issueSession } = require('../middleware/authenticate')
 const { loginUser, registerUser, toPublicUser } = require('../services/auth.service')
+const { removeAvatar, storeAvatar } = require('../services/experience-image-storage')
 const { validateLogin, validateRegistration } = require('../utils/auth-validation')
 
 async function register(req, res, next) {
+  let profilePhotoUrl = ''
   try {
     const input = validateRegistration(req.body)
-    const user = await registerUser(input)
+    if (req.file) profilePhotoUrl = await storeAvatar(req.file)
+    const user = await registerUser({ ...input, profilePhotoUrl })
     issueSession(res, user)
     res.status(201).json({
       status: 'ok',
@@ -13,6 +16,7 @@ async function register(req, res, next) {
       user,
     })
   } catch (error) {
+    if (profilePhotoUrl) await removeAvatar(profilePhotoUrl)
     next(error)
   }
 }

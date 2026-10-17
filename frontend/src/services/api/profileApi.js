@@ -4,6 +4,11 @@ export const profileApi = {
   get: () => apiRequest('/users/profile'),
   update: (changes) =>
     apiRequest('/users/profile', { method: 'PATCH', body: JSON.stringify(changes) }),
+  logDonationDate: (donationDate) =>
+    apiRequest('/users/profile/donation-history', {
+      method: 'POST',
+      body: JSON.stringify({ donationDate }),
+    }),
   updatePhoto: (formData) =>
     apiRequest('/users/profile/photo', { method: 'PUT', body: formData }),
   delete: () => apiRequest('/users/profile', { method: 'DELETE' }),

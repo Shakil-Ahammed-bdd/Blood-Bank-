@@ -1,5 +1,6 @@
 import Reveal from '../shared/Reveal'
 import SectionHeading from '../shared/SectionHeading'
+import { useLanguage } from '../../contexts/useLanguage'
 
 const steps = [
   {
@@ -51,16 +52,17 @@ const steps = [
 ]
 
 function HowItWorks() {
+  const { t } = useLanguage()
   return (
     <section aria-labelledby="how-it-works-title" className="section process-section" id="about">
       <div className="section-container">
         <Reveal>
           <SectionHeading
-            description="একটি ছোট উদ্যোগই হতে পারে কারও জীবনের সবচেয়ে বড় সহায়তা।"
-            highlight="পাশে থাকুন"
+            description={t('একটি ছোট উদ্যোগই হতে পারে কারও জীবনের সবচেয়ে বড় সহায়তা।')}
+            highlight={t('পাশে থাকুন')}
             id="how-it-works-title"
-            kicker="সহজ চারটি ধাপ"
-            title="রক্তদানে"
+            kicker={t('সহজ চারটি ধাপ')}
+            title={t('রক্তদানে')}
           />
         </Reveal>
 
@@ -73,8 +75,8 @@ function HowItWorks() {
                 </span>
                 <span className="process-number">{step.number}</span>
               </div>
-              <h3>{step.title}</h3>
-              <p>{step.description}</p>
+              <h3>{t(step.title)}</h3>
+              <p>{t(step.description)}</p>
               {index < steps.length - 1 && (
                 <span aria-hidden="true" className="process-connector">→</span>
               )}
@@ -82,7 +84,7 @@ function HowItWorks() {
           ))}
         </div>
         <p className="process-disclaimer">
-          দাতা নিবন্ধন ও যোগাযোগের অনলাইন সুবিধাগুলো এখনো তৈরি হচ্ছে।
+          {t('দাতা নিবন্ধন ও যোগাযোগের অনলাইন সুবিধাগুলো এখনো তৈরি হচ্ছে।')}
         </p>
       </div>
     </section>

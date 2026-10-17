@@ -6,6 +6,8 @@ const HttpError = require('../errors/http-error')
 const { toPublicUser } = require('./auth.service')
 const { removeAvatar, storeAvatar } = require('./experience-image-storage')
 const { deleteUserInteractions } = require('./experience-social.service')
+const { isAvailableToDonate } = require('../utils/donation-eligibility')
+const { badgeSummary, getDonorBadge } = require('./donor-badge.service')
 
 function ensureDatabase() {
   if (mongoose.connection.readyState !== 1) {
@@ -13,11 +15,16 @@ function ensureDatabase() {
   }
 }
 
+async function toProfileUser(user) {
+  const donorBadge = await getDonorBadge(user._id, user.previousBloodDonations)
+  return { ...toPublicUser(user), donorBadge }
+}
+
 async function getProfile(userId) {
   ensureDatabase()
   const user = await User.findById(userId)
   if (!user) throw new HttpError(404, 'PROFILE_NOT_FOUND', 'The user profile was not found.')
-  return toPublicUser(user)
+  return toProfileUser(user)
 }
 
 async function getPublicProfile(identifier) {
@@ -26,12 +33,11 @@ async function getPublicProfile(identifier) {
     ? { _id: identifier }
     : { userId: String(identifier).toUpperCase() }
   const user = await User.findOne(query)
-    .select('userId fullName bloodGroup division district location isDonorAvailable isSearchable profilePhotoUrl createdAt')
+    .select('userId fullName phone whatsappNumber isContactPublic bloodGroup division district upazila location lastDonationDate previousBloodDonations isSearchable profilePhotoUrl createdAt')
     .lean()
   if (!user) throw new HttpError(404, 'PROFILE_NOT_FOUND', 'The public donor profile was not found.')
 
-  let publicProfileDetails = user.isSearchable
-  if (!publicProfileDetails) {
+  if (!user.isSearchable) {
     const [hasPublicPost, commentPostIds] = await Promise.all([
       Experience.exists({ userId: user._id, status: 'approved', isPublic: true }),
       ExperienceComment.distinct('experienceId', { userId: user._id }),
@@ -41,7 +47,6 @@ async function getPublicProfile(identifier) {
       status: 'approved',
       isPublic: true,
     })
-    publicProfileDetails = Boolean(hasPublicPost)
     if (!hasPublicPost && !hasPublicComment) {
       throw new HttpError(404, 'PROFILE_NOT_FOUND', 'The public donor profile was not found.')
     }
@@ -51,13 +56,25 @@ async function getPublicProfile(identifier) {
     userId: user.userId,
     fullName: user.fullName,
     profilePhotoUrl: user.profilePhotoUrl || '',
-    ...(publicProfileDetails
+    ...(user.isSearchable
       ? {
           bloodGroup: user.bloodGroup,
           division: user.division,
           district: user.district,
+          upazila: user.upazila || '',
           location: user.location,
-          isDonorAvailable: user.isDonorAvailable,
+          ...(user.isContactPublic
+            ? {
+                phone: user.phone,
+                ...(user.whatsappNumber ? { whatsappNumber: user.whatsappNumber } : {}),
+              }
+            : {}),
+          lastDonationDate: user.lastDonationDate || null,
+          previousBloodDonations: user.previousBloodDonations || 0,
+          isAvailableToDonate: isAvailableToDonate(user.lastDonationDate),
+          donorBadge: badgeSummary(
+            await getDonorBadge(user._id, user.previousBloodDonations),
+          ),
           createdAt: user.createdAt,
         }
       : { limitedPublicProfile: true }),
@@ -72,7 +89,42 @@ async function updateProfile(userId, changes) {
     { returnDocument: 'after', runValidators: true, context: 'query' },
   )
   if (!user) throw new HttpError(404, 'PROFILE_NOT_FOUND', 'The user profile was not found.')
-  return toPublicUser(user)
+  return toProfileUser(user)
+}
+
+async function logDonationDate(userId, donationDate) {
+  ensureDatabase()
+  const currentUser = await User.findById(userId).select('createdAt')
+  if (!currentUser) throw new HttpError(404, 'PROFILE_NOT_FOUND', 'The user profile was not found.')
+  const joinedDate = new Date(currentUser.createdAt)
+  joinedDate.setUTCHours(0, 0, 0, 0)
+  if (donationDate < joinedDate) {
+    throw new HttpError(400, 'VALIDATION_ERROR', 'Please check the highlighted fields.', {
+      donationDate: 'Only donation dates from your registration date onward can be logged here.',
+    })
+  }
+  const user = await User.findOneAndUpdate(
+    {
+      _id: userId,
+      donationHistory: { $not: { $elemMatch: { donationDate } } },
+    },
+    {
+      $push: { donationHistory: { donationDate, loggedAt: new Date() } },
+      $max: { lastDonationDate: donationDate },
+    },
+    { returnDocument: 'after', runValidators: true },
+  )
+  if (user) return toProfileUser(user)
+
+  const existingUser = await User.findById(userId).select('_id')
+  if (!existingUser) throw new HttpError(404, 'PROFILE_NOT_FOUND', 'The user profile was not found.')
+  const refreshedUser = await User.findByIdAndUpdate(
+    userId,
+    { $max: { lastDonationDate: donationDate } },
+    { returnDocument: 'after', runValidators: true },
+  )
+  if (!refreshedUser) throw new HttpError(404, 'PROFILE_NOT_FOUND', 'The user profile was not found.')
+  return toProfileUser(refreshedUser)
 }
 
 async function updateProfilePhoto(userId, file) {
@@ -94,7 +146,7 @@ async function updateProfilePhoto(userId, file) {
     throw error
   }
   await removeAvatar(previousImage)
-  return toPublicUser(user)
+  return toProfileUser(user)
 }
 
 async function deleteProfile(userId) {
@@ -110,6 +162,7 @@ module.exports = {
   deleteProfile,
   getProfile,
   getPublicProfile,
+  logDonationDate,
   updateProfile,
   updateProfilePhoto,
 }

@@ -24,6 +24,8 @@ test('registration, profiles, donor search, and cookie-based authentication life
   const unavailableEmail = `auth-test-${randomUUID()}@example.test`
   const privateEmail = `auth-test-${randomUUID()}@example.test`
   let otherDonorExperienceId
+  let badgeHistoryFixtureId
+  const invalidBloodGroupFixtureIds = []
   const makeDetails = (userEmail, overrides = {}) => ({
     fullName: 'Test Donor',
     email: userEmail,
@@ -31,9 +33,12 @@ test('registration, profiles, donor search, and cookie-based authentication life
     bloodGroup: 'A+',
     division: 'ঢাকা',
     district: 'ঢাকা',
+    upazila: 'সাভার',
     location: 'ধানমন্ডি',
-    isDonorAvailable: true,
+    whatsappNumber: '01812345678',
+    previousBloodDonations: 4,
     isSearchable: true,
+    isContactPublic: true,
     password: 'a-secure-test-password',
     confirmPassword: 'a-secure-test-password',
     acceptTerms: true,
@@ -42,16 +47,19 @@ test('registration, profiles, donor search, and cookie-based authentication life
   const userDetails = makeDetails(email)
   const unavailableDetails = makeDetails(unavailableEmail, {
     fullName: 'Unavailable Donor',
-    isDonorAvailable: false,
+    lastDonationDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    isContactPublic: false,
     location: 'গুলশান',
   })
   const privateDetails = makeDetails(privateEmail, {
     fullName: 'Private Donor',
     isSearchable: false,
+    previousBloodDonations: 0,
   })
   const server = app.listen(0, '127.0.0.1')
   let createdExperience
   let profilePhotoUrl = ''
+  let registrationPhotoUrl = ''
 
   try {
     await new Promise((resolve, reject) => {
@@ -68,6 +76,54 @@ test('registration, profiles, donor search, and cookie-based authentication life
         ...options,
         headers: { origin: clientOrigin, ...options.headers },
       })
+
+    const initialImpactResponse = await fetch(`${baseUrl}/api/stats/live-impact`)
+    assert.equal(initialImpactResponse.status, 200)
+    const initialImpact = await initialImpactResponse.json()
+    assert.equal(initialImpact.totalRegistered, await User.countDocuments({}))
+    assert.deepEqual(Object.keys(initialImpact.bloodGroups).sort(), [
+      'A+', 'A-', 'AB+', 'AB-', 'B+', 'B-', 'O+', 'O-',
+    ].sort())
+    assert.ok(Array.isArray(initialImpact.monthlyRegistrations))
+    assert.equal('users' in initialImpact, false)
+    assert.equal('passwordHash' in initialImpact, false)
+
+    const legacyFixtureBase = {
+      userId: `AHB-${randomBytes(8).toString('hex').toUpperCase()}`,
+      fullName: 'Legacy Statistics Fixture',
+      email: `legacy-stats-${randomUUID()}@example.test`,
+      phone: '01712345678',
+      division: 'ঢাকা',
+      district: 'ঢাকা',
+      location: 'ঢাকা',
+      passwordHash: 'test-only-hash',
+      createdAt: new Date('2024-01-15T12:00:00.000Z'),
+      updatedAt: new Date('2024-01-15T12:00:00.000Z'),
+    }
+    const invalidBloodGroupFixtureId = new mongoose.Types.ObjectId()
+    const missingBloodGroupFixtureId = new mongoose.Types.ObjectId()
+    invalidBloodGroupFixtureIds.push(invalidBloodGroupFixtureId, missingBloodGroupFixtureId)
+    await User.collection.insertMany([
+      {
+        ...legacyFixtureBase,
+        _id: invalidBloodGroupFixtureId,
+        bloodGroup: 'invalid-legacy-value',
+      },
+      {
+        ...legacyFixtureBase,
+        _id: missingBloodGroupFixtureId,
+        email: `legacy-stats-${randomUUID()}@example.test`,
+        userId: `AHB-${randomBytes(8).toString('hex').toUpperCase()}`,
+      },
+    ])
+    const legacyDataImpact = await fetch(`${baseUrl}/api/stats/live-impact`).then((response) => response.json())
+    assert.equal(legacyDataImpact.totalRegistered, initialImpact.totalRegistered + 2)
+    assert.deepEqual(legacyDataImpact.bloodGroups, initialImpact.bloodGroups)
+    assert.equal(legacyDataImpact.monthlyRegistrations.find(
+      ({ year, month }) => year === 2024 && month === 1,
+    ).count, (initialImpact.monthlyRegistrations.find(
+      ({ year, month }) => year === 2024 && month === 1,
+    )?.count || 0) + 2)
 
     const preflight = await request('/login', {
       method: 'OPTIONS',
@@ -105,16 +161,46 @@ test('registration, profiles, donor search, and cookie-based authentication life
     assert.equal(missingLocation.status, 400)
     assert.equal((await missingLocation.json()).fieldErrors.location.length > 0, true)
 
+    const registrationPhotoBytes = await sharp({
+      create: { width: 2, height: 2, channels: 4, background: '#ec2633' },
+    }).png().toBuffer()
+    const registrationForm = new FormData()
+    for (const [key, value] of Object.entries(userDetails)) {
+      registrationForm.append(key, String(value))
+    }
+    registrationForm.set('latitude', '23.8103')
+    registrationForm.set('longitude', '90.4125')
+    registrationForm.append(
+      'photo',
+      new Blob([registrationPhotoBytes], { type: 'image/png' }),
+      'registration.png',
+    )
     const registration = await request('/register', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(userDetails),
+      body: registrationForm,
     })
     assert.equal(registration.status, 201)
     assert.equal(registration.headers.get('access-control-allow-origin'), clientOrigin)
     assert.equal(registration.headers.get('access-control-allow-credentials'), 'true')
     const registered = await registration.json()
+    const impactAfterRegistration = await fetch(`${baseUrl}/api/stats/live-impact`).then((response) => response.json())
+    assert.equal(impactAfterRegistration.totalRegistered, legacyDataImpact.totalRegistered + 1)
+    assert.equal(impactAfterRegistration.bloodGroups['A+'], legacyDataImpact.bloodGroups['A+'] + 1)
+    const registrationMonth = new Date(registered.user.createdAt)
+    const currentRegistrationMonth = impactAfterRegistration.monthlyRegistrations.find(
+      ({ year, month }) =>
+        year === registrationMonth.getUTCFullYear() && month === registrationMonth.getUTCMonth() + 1,
+    )
+    assert.equal(currentRegistrationMonth.count, (legacyDataImpact.monthlyRegistrations.find(
+      ({ year, month }) =>
+        year === registrationMonth.getUTCFullYear() && month === registrationMonth.getUTCMonth() + 1,
+    )?.count || 0) + 1)
     assert.match(registered.user.userId, /^AHB-[A-F0-9]{16}$/)
+    assert.match(registered.user.profilePhotoUrl, /^\/api\/uploads\/avatars\/[a-f0-9-]+\.webp$/i)
+    registrationPhotoUrl = registered.user.profilePhotoUrl
+    assert.equal((await fetch(`${baseUrl}${registrationPhotoUrl}`)).status, 200)
+    assert.equal(registered.user.latitude, 23.8103)
+    assert.equal(registered.user.longitude, 90.4125)
     assert.equal('passwordHash' in registered.user, false)
     assert.equal('token' in registered, false)
     const registrationCookie = registration.headers.getSetCookie()[0]
@@ -168,6 +254,8 @@ test('registration, profiles, donor search, and cookie-based authentication life
     assert.equal(getProfile.status, 200)
     const profile = await getProfile.json()
     assert.equal(profile.user.location, 'ধানমন্ডি')
+    assert.equal(profile.user.upazila, 'সাভার')
+    assert.equal(profile.user.previousBloodDonations, 4)
     assert.equal(profile.user.isSearchable, true)
     assert.equal('passwordHash' in profile.user, false)
     assert.equal((await fetch(`${baseUrl}/api/users/profile`)).status, 401)
@@ -186,7 +274,11 @@ test('registration, profiles, donor search, and cookie-based authentication life
         division: 'ঢাকা',
         district: 'ঢাকা',
         location: 'উত্তরা',
-        isDonorAvailable: true,
+        upazila: 'সাভার',
+        whatsappNumber: '01812345678',
+        latitude: 23.8103,
+        longitude: 90.4125,
+        isContactPublic: true,
         isSearchable: true,
       }),
     })
@@ -195,6 +287,21 @@ test('registration, profiles, donor search, and cookie-based authentication life
     assert.equal(updatedProfile.user.fullName, 'Updated Test Donor')
     assert.equal(updatedProfile.user.location, 'উত্তরা')
     assert.equal(updatedProfile.user.bloodGroup, 'B+')
+    assert.equal(updatedProfile.user.whatsappNumber, '01812345678')
+    assert.equal(updatedProfile.user.upazila, 'সাভার')
+    assert.equal(updatedProfile.user.previousBloodDonations, 4)
+    assert.equal(updatedProfile.user.latitude, 23.8103)
+    assert.equal(updatedProfile.user.longitude, 90.4125)
+    assert.equal(updatedProfile.user.isContactPublic, true)
+    assert.equal(updatedProfile.user.isAvailableToDonate, true)
+
+    const rejectedEligibilityOverride = await fetch(`${baseUrl}/api/users/profile`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', cookie: sessionCookie },
+      body: JSON.stringify({ isDonorAvailable: true }),
+    })
+    assert.equal(rejectedEligibilityOverride.status, 400)
+    assert.ok((await rejectedEligibilityOverride.json()).fieldErrors.isDonorAvailable)
 
     const protectedFieldUpdate = await fetch(`${baseUrl}/api/users/profile`, {
       method: 'PATCH',
@@ -209,6 +316,20 @@ test('registration, profiles, donor search, and cookie-based authentication life
       body: JSON.stringify({ division: 'চট্টগ্রাম' }),
     })
     assert.equal(invalidLocationUpdate.status, 400)
+    const rejectedDonationCountEdit = await fetch(`${baseUrl}/api/users/profile`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', cookie: sessionCookie },
+      body: JSON.stringify({ previousBloodDonations: 100 }),
+    })
+    assert.equal(rejectedDonationCountEdit.status, 400)
+    assert.ok((await rejectedDonationCountEdit.json()).fieldErrors.previousBloodDonations)
+    const rejectedLastDonationDateEdit = await fetch(`${baseUrl}/api/users/profile`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', cookie: sessionCookie },
+      body: JSON.stringify({ lastDonationDate: null }),
+    })
+    assert.equal(rejectedLastDonationDateEdit.status, 400)
+    assert.ok((await rejectedLastDonationDateEdit.json()).fieldErrors.lastDonationDate)
 
     const secondRegistration = await request('/register', {
       method: 'POST',
@@ -216,6 +337,7 @@ test('registration, profiles, donor search, and cookie-based authentication life
       body: JSON.stringify(unavailableDetails),
     })
     assert.equal(secondRegistration.status, 201)
+    const unavailableUser = await secondRegistration.json()
     const privateRegistration = await request('/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -223,7 +345,134 @@ test('registration, profiles, donor search, and cookie-based authentication life
     })
     assert.equal(privateRegistration.status, 201)
     const privateUser = await privateRegistration.json()
+    const yearSpecificFixtures = [
+      [registered.user.id, new Date('2025-01-15T12:00:00.000Z')],
+      [unavailableUser.user.id, new Date('2026-01-15T12:00:00.000Z')],
+      [privateUser.user.id, new Date('2025-01-20T12:00:00.000Z')],
+    ]
+    await Promise.all(yearSpecificFixtures.map(([id, createdAt]) =>
+      User.collection.updateOne({ _id: new mongoose.Types.ObjectId(id) }, { $set: { createdAt } })))
+    const yearSpecificImpact = await fetch(`${baseUrl}/api/stats/live-impact`).then((response) => response.json())
+    const january2025 = yearSpecificImpact.monthlyRegistrations.find(
+      ({ year, month }) => year === 2025 && month === 1,
+    )
+    const january2026 = yearSpecificImpact.monthlyRegistrations.find(
+      ({ year, month }) => year === 2026 && month === 1,
+    )
+    assert.equal(january2025.count, (initialImpact.monthlyRegistrations.find(
+      ({ year, month }) => year === 2025 && month === 1,
+    )?.count || 0) + 2)
+    assert.equal(january2026.count, (initialImpact.monthlyRegistrations.find(
+      ({ year, month }) => year === 2026 && month === 1,
+    )?.count || 0) + 1)
     const privateCookie = privateRegistration.headers.getSetCookie()[0].split(';')[0]
+    const privateOwnProfile = await fetch(`${baseUrl}/api/users/profile`, {
+      headers: { cookie: privateCookie },
+    }).then((response) => response.json()).then(({ user }) => user)
+    assert.equal(privateOwnProfile.donorBadge.badge, 'New Donor')
+    assert.equal(privateOwnProfile.donorBadge.totalDonations, 0)
+    assert.deepEqual(privateOwnProfile.donorBadge.donationHistory, [])
+    const unauthorizedDonationLog = await fetch(`${baseUrl}/api/users/profile/donation-history`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: clientOrigin },
+      body: JSON.stringify({ donationDate: '2026-09-20' }),
+    })
+    assert.equal(unauthorizedDonationLog.status, 401)
+
+    const now = new Date()
+    const utcToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+    const dateFromToday = (offset) =>
+      new Date(utcToday - offset * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const tomorrow = dateFromToday(-1)
+    const futureDonation = await fetch(`${baseUrl}/api/users/profile/donation-history`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: privateCookie,
+        origin: clientOrigin,
+      },
+      body: JSON.stringify({ donationDate: tomorrow }),
+    })
+    assert.equal(futureDonation.status, 400)
+    assert.ok((await futureDonation.json()).fieldErrors.donationDate)
+    const malformedDonation = await fetch(`${baseUrl}/api/users/profile/donation-history`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: privateCookie,
+        origin: clientOrigin,
+      },
+      body: JSON.stringify({ donationDate: '2024-02-30' }),
+    })
+    assert.equal(malformedDonation.status, 400)
+    assert.ok((await malformedDonation.json()).fieldErrors.donationDate)
+
+    const joinedAt = new Date(utcToday - 300 * 24 * 60 * 60 * 1000)
+    await User.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(privateUser.user.id) },
+      { $set: { createdAt: joinedAt } },
+    )
+    const preRegistrationDonation = await fetch(`${baseUrl}/api/users/profile/donation-history`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: privateCookie,
+        origin: clientOrigin,
+      },
+      body: JSON.stringify({ donationDate: dateFromToday(301) }),
+    })
+    assert.equal(preRegistrationDonation.status, 400)
+    assert.ok((await preRegistrationDonation.json()).fieldErrors.donationDate)
+
+    async function logDonation(date) {
+      return fetch(`${baseUrl}/api/users/profile/donation-history`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: privateCookie,
+          origin: clientOrigin,
+        },
+        body: JSON.stringify({ donationDate: date }),
+      })
+    }
+    const firstLoggedDate = dateFromToday(130)
+    const firstLog = await logDonation(firstLoggedDate)
+    const firstLogBody = await firstLog.json()
+    assert.equal(firstLog.status, 200, JSON.stringify(firstLogBody))
+    const firstLoggedProfile = firstLogBody.user
+    assert.equal(firstLoggedProfile.donorBadge.badge, 'Bronze Donor')
+    assert.equal(firstLoggedProfile.donorBadge.totalDonations, 1)
+    assert.equal(firstLoggedProfile.donorBadge.loggedDonationCount, 1)
+    assert.equal(firstLoggedProfile.donorBadge.donationHistory.length, 1)
+    assert.equal(firstLoggedProfile.isAvailableToDonate, true)
+
+    const repeatedLog = await logDonation(firstLoggedDate)
+    assert.equal(repeatedLog.status, 200)
+    const repeatedProfile = (await repeatedLog.json()).user
+    assert.equal(repeatedProfile.donorBadge.totalDonations, 1)
+    assert.equal(repeatedProfile.donorBadge.donationHistory.length, 1)
+    assert.equal(
+      repeatedProfile.donorBadge.donationHistory[0].loggedAt,
+      firstLoggedProfile.donorBadge.donationHistory[0].loggedAt,
+    )
+
+    const olderLog = await logDonation(dateFromToday(140))
+    assert.equal(olderLog.status, 200)
+    const olderLoggedProfile = (await olderLog.json()).user
+    assert.equal(olderLoggedProfile.donorBadge.totalDonations, 2)
+    assert.equal(olderLoggedProfile.lastDonationDate.slice(0, 10), firstLoggedDate)
+
+    const newerLog = await logDonation(dateFromToday(119))
+    assert.equal(newerLog.status, 200)
+    const newerLoggedProfile = (await newerLog.json()).user
+    assert.equal(newerLoggedProfile.donorBadge.badge, 'Silver Donor')
+    assert.equal(newerLoggedProfile.donorBadge.totalDonations, 3)
+    assert.equal(newerLoggedProfile.lastDonationDate.slice(0, 10), dateFromToday(119))
+    assert.equal(newerLoggedProfile.isAvailableToDonate, false)
+    assert.deepEqual(
+      newerLoggedProfile.donorBadge.donationHistory.map(({ date }) => date),
+      [dateFromToday(119), firstLoggedDate, dateFromToday(140)],
+    )
 
     const publicExperiences = await fetch(`${baseUrl}/api/experiences`)
     assert.equal(publicExperiences.status, 200)
@@ -374,6 +623,44 @@ test('registration, profiles, donor search, and cookie-based authentication life
     const createdExperienceBody = await createdExperienceResponse.json()
     assert.equal(createdExperienceBody.success, true)
     createdExperience = createdExperienceBody.data.experience
+    let ownProfile = await fetch(`${baseUrl}/api/users/profile`, {
+      headers: { cookie: sessionCookie },
+    }).then((response) => response.json()).then(({ user }) => user)
+    assert.equal(ownProfile.donorBadge.badge, 'Silver Donor')
+    assert.equal(ownProfile.donorBadge.totalDonations, 4)
+    assert.equal(ownProfile.donorBadge.donationHistory.length, 0)
+
+    const additionalDonation = await Experience.create({
+      userId: registered.user.id,
+      donorName: registered.user.fullName,
+      publicUserId: registered.user.userId,
+      bloodGroup: registered.user.bloodGroup,
+      division: registered.user.division,
+      district: registered.user.district,
+      location: registered.user.location,
+      donationDate: new Date('2026-09-20T00:00:00.000Z'),
+      donationCount: 6,
+      message: 'A second actual donation experience for badge integration testing.',
+      images: [createdExperience.photoUrl],
+      photoUrl: createdExperience.photoUrl,
+      publicConsent: true,
+      isPublic: false,
+      status: 'pending',
+    })
+    badgeHistoryFixtureId = additionalDonation.id
+    ownProfile = await fetch(`${baseUrl}/api/users/profile`, {
+      headers: { cookie: sessionCookie },
+    }).then((response) => response.json()).then(({ user }) => user)
+    assert.equal(ownProfile.donorBadge.badge, 'Silver Donor')
+    assert.equal(ownProfile.donorBadge.totalDonations, 4)
+    assert.equal(ownProfile.donorBadge.donationHistory.length, 0)
+    await Experience.deleteOne({ _id: badgeHistoryFixtureId })
+    badgeHistoryFixtureId = null
+    ownProfile = await fetch(`${baseUrl}/api/users/profile`, {
+      headers: { cookie: sessionCookie },
+    }).then((response) => response.json()).then(({ user }) => user)
+    assert.equal(ownProfile.donorBadge.badge, 'Silver Donor')
+    assert.equal(ownProfile.donorBadge.totalDonations, 4)
     assert.equal(createdExperience.status, 'pending')
     assert.equal(createdExperience.isPublic, true)
     assert.equal(createdExperience.donorId, registered.user.id)
@@ -558,6 +845,15 @@ test('registration, profiles, donor search, and cookie-based authentication life
       status: 'approved',
     })
     otherDonorExperienceId = otherDonorExperience.id
+    const limitedExperienceProfile = await fetch(
+      `${baseUrl}/api/users/${privateUser.user.id}/profile`,
+    )
+    assert.equal(limitedExperienceProfile.status, 200)
+    const limitedExperienceProfileData = (await limitedExperienceProfile.json()).user
+    assert.equal(limitedExperienceProfileData.limitedPublicProfile, true)
+    assert.equal('phone' in limitedExperienceProfileData, false)
+    assert.equal('whatsappNumber' in limitedExperienceProfileData, false)
+    assert.equal('latitude' in limitedExperienceProfileData, false)
     const feedWithMultipleDonors = await fetch(`${baseUrl}/api/experiences?page=1&limit=24`)
     const multipleDonorData = await feedWithMultipleDonors.json()
     assert.equal(multipleDonorData.experiences.some(({ id }) => id === createdExperience.id), true)
@@ -577,9 +873,19 @@ test('registration, profiles, donor search, and cookie-based authentication life
     const publicDonorProfile = await fetch(`${baseUrl}/api/users/${registered.user.id}/profile`)
     assert.equal(publicDonorProfile.status, 200)
     const publicDonorData = (await publicDonorProfile.json()).user
+    assert.equal(publicDonorData.donorBadge.badge, 'Silver Donor')
+    assert.equal(publicDonorData.donorBadge.totalDonations, 4)
+    assert.equal('donationHistory' in publicDonorData.donorBadge, false)
+    assert.equal('loggedDonationCount' in publicDonorData.donorBadge, false)
+    assert.equal('previousBloodDonations' in publicDonorData.donorBadge, false)
     assert.equal(publicDonorData.profilePhotoUrl, profilePhotoUrl)
     assert.equal('email' in publicDonorData, false)
-    assert.equal('phone' in publicDonorData, false)
+    assert.equal(publicDonorData.phone, '01812345678')
+    assert.equal(publicDonorData.whatsappNumber, userDetails.whatsappNumber)
+    assert.equal(publicDonorData.upazila, userDetails.upazila)
+    assert.equal(publicDonorData.previousBloodDonations, userDetails.previousBloodDonations)
+    assert.equal('latitude' in publicDonorData, false)
+    assert.equal('longitude' in publicDonorData, false)
     const donorProfileExperiences = await fetch(`${baseUrl}/api/users/${registered.user.id}/experiences`)
     assert.equal((await donorProfileExperiences.json()).experiences[0].id, createdExperience.id)
 
@@ -801,11 +1107,33 @@ test('registration, profiles, donor search, and cookie-based authentication life
     assert.equal(availableResult.pagination.total, 1)
     assert.equal(availableResult.donors[0].fullName, 'Updated Test Donor')
     assert.equal('email' in availableResult.donors[0], false)
-    assert.equal('phone' in availableResult.donors[0], false)
+    assert.equal(availableResult.donors[0].phone, '01812345678')
+    assert.equal(availableResult.donors[0].isAvailableToDonate, true)
+    assert.equal(availableResult.donors[0].donorBadge.badge, 'Silver Donor')
+    assert.equal(availableResult.donors[0].donorBadge.totalDonations, 4)
+    assert.equal('donationHistory' in availableResult.donors[0].donorBadge, false)
+    assert.equal('loggedDonationCount' in availableResult.donors[0].donorBadge, false)
+    assert.equal(availableResult.donors[0].upazila, 'সাভার')
+    assert.equal('latitude' in availableResult.donors[0], false)
+    assert.equal('longitude' in availableResult.donors[0], false)
+    const filteredByUpazila = await fetch(`${baseUrl}/api/donors?district=${encodeURIComponent('ঢাকা')}&division=${encodeURIComponent('ঢাকা')}&upazila=${encodeURIComponent('সাভার')}&availability=all`)
+    assert.equal(filteredByUpazila.status, 200)
+    assert.equal((await filteredByUpazila.json()).pagination.total, 2)
 
     const unavailableDonors = await fetch(`${baseUrl}/api/donors?availability=unavailable`)
     assert.equal(unavailableDonors.status, 200)
     assert.equal((await unavailableDonors.json()).pagination.total, 1)
+    const allDonors = await fetch(`${baseUrl}/api/donors?availability=all&limit=50`)
+    const allDonorData = (await allDonors.json()).donors
+    const contactPrivateDonor = allDonorData.find(({ fullName }) => fullName === 'Unavailable Donor')
+    assert.ok(contactPrivateDonor)
+    assert.equal('phone' in contactPrivateDonor, false)
+    assert.equal('whatsappNumber' in contactPrivateDonor, false)
+    const privateContactProfile = await fetch(`${baseUrl}/api/users/${unavailableUser.user.id}/profile`)
+    assert.equal(privateContactProfile.status, 200)
+    const privateContactProfileData = (await privateContactProfile.json()).user
+    assert.equal('phone' in privateContactProfileData, false)
+    assert.equal('whatsappNumber' in privateContactProfileData, false)
     const allPublicDonors = await fetch(`${baseUrl}/api/donors?availability=all&limit=1`)
     const publicResult = await allPublicDonors.json()
     assert.equal(publicResult.pagination.total, 2)
@@ -816,8 +1144,132 @@ test('registration, profiles, donor search, and cookie-based authentication life
     assert.equal(recentResult.donors[1].fullName, 'Updated Test Donor')
     assert.equal(new Date(recentResult.donors[0].createdAt) > new Date(recentResult.donors[1].createdAt), true)
     assert.equal('email' in recentResult.donors[0], false)
+    const leaderboardHistory = (count, duplicateFirst = false) => {
+      const dates = Array.from({ length: count }, (_, index) => ({
+        donationDate: new Date(Date.UTC(2024, 0, index + 1)),
+        loggedAt: new Date(Date.UTC(2024, 0, index + 1, 12)),
+      }))
+      return duplicateFirst && dates.length
+        ? [...dates, { ...dates[0] }]
+        : dates
+    }
+    await Promise.all([
+      User.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(registered.user.id) },
+        {
+          $set: {
+            previousBloodDonations: 3,
+            donationHistory: leaderboardHistory(5, true),
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        },
+      ),
+      User.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(unavailableUser.user.id) },
+        {
+          $set: {
+            previousBloodDonations: 1,
+            donationHistory: leaderboardHistory(6),
+            createdAt: new Date('2026-02-01T00:00:00.000Z'),
+          },
+        },
+      ),
+      User.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(privateUser.user.id) },
+        {
+          $set: {
+            isSearchable: true,
+            isContactPublic: true,
+            previousBloodDonations: 5,
+            donationHistory: leaderboardHistory(1),
+            createdAt: new Date('2026-03-01T00:00:00.000Z'),
+          },
+        },
+      ),
+    ])
+    const leaderboardResponse = await fetch(`${baseUrl}/api/leaderboard/donors`)
+    assert.equal(leaderboardResponse.status, 200)
+    const leaderboardData = await leaderboardResponse.json()
+    assert.deepEqual(leaderboardData.donors.map(({ id, rank, totalLifetimeDonations }) => ({
+      id,
+      rank,
+      totalLifetimeDonations,
+    })), [
+      { id: registered.user.id, rank: 1, totalLifetimeDonations: 8 },
+      { id: unavailableUser.user.id, rank: 2, totalLifetimeDonations: 7 },
+      { id: privateUser.user.id, rank: 3, totalLifetimeDonations: 6 },
+    ])
+    assert.equal(leaderboardData.donors[0].loggedDonationCount, 5)
+    assert.equal(leaderboardData.donors[0].donorBadge.badge, 'Gold Donor')
+    assert.equal(leaderboardData.donors[0].isAvailableToDonate, true)
+    for (const donor of leaderboardData.donors) {
+      for (const privateField of [
+        'email', 'phone', 'whatsappNumber', 'password', 'passwordHash', 'token',
+        'latitude', 'longitude', 'donationHistory', 'uniqueDonationDates',
+      ]) {
+        assert.equal(privateField in donor, false)
+      }
+    }
+    assert.equal((await fetch(`${baseUrl}/api/donors/${registered.user.id}`)).status, 200)
+
+    await User.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(privateUser.user.id) },
+      { $set: { previousBloodDonations: 0, donationHistory: [] } },
+    )
+    const withoutZeroDonor = await fetch(`${baseUrl}/api/leaderboard/donors`)
+      .then((response) => response.json())
+    assert.deepEqual(withoutZeroDonor.donors.map(({ id }) => id), [
+      registered.user.id,
+      unavailableUser.user.id,
+    ])
+    await Promise.all([registered.user.id, unavailableUser.user.id].map((id) =>
+      User.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(id) },
+        { $set: { previousBloodDonations: 0, donationHistory: [] } },
+      )))
+    assert.deepEqual(
+      await fetch(`${baseUrl}/api/leaderboard/donors`).then((response) => response.json()),
+      { status: 'ok', donors: [] },
+    )
+
+    await User.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(unavailableUser.user.id) },
+      { $set: { previousBloodDonations: 1, donationHistory: leaderboardHistory(6) } },
+    )
+    await User.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(registered.user.id) },
+      { $set: { previousBloodDonations: 3, donationHistory: leaderboardHistory(5, true) } },
+    )
+    await User.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(privateUser.user.id) },
+      { $set: { previousBloodDonations: 1, donationHistory: leaderboardHistory(6) } },
+    )
+    const tiedLeaderboard = await fetch(`${baseUrl}/api/leaderboard/donors`)
+      .then((response) => response.json())
+    assert.deepEqual(tiedLeaderboard.donors.slice(1).map(({ id }) => id), [
+      privateUser.user.id,
+      unavailableUser.user.id,
+    ])
+    await User.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(unavailableUser.user.id) },
+      { $set: { donationHistory: leaderboardHistory(7) } },
+    )
+    const updatedLeaderboard = await fetch(`${baseUrl}/api/leaderboard/donors`)
+      .then((response) => response.json())
+    assert.deepEqual(updatedLeaderboard.donors.slice(0, 2).map(({ id, totalLifetimeDonations }) => ({
+      id,
+      totalLifetimeDonations,
+    })), [
+      { id: unavailableUser.user.id, totalLifetimeDonations: 8 },
+      { id: registered.user.id, totalLifetimeDonations: 8 },
+    ])
+    const ownLeaderboard = await fetch(`${baseUrl}/api/leaderboard/donors`, {
+      headers: { cookie: sessionCookie },
+    }).then((response) => response.json())
+    assert.ok(ownLeaderboard.donors.some(({ id }) => id === registered.user.id))
+
     const hiddenProfile = await fetch(`${baseUrl}/api/donors/${privateUser.user.id}`)
-    assert.equal(hiddenProfile.status, 404)
+    assert.equal(hiddenProfile.status, 200)
     const publicProfile = await fetch(`${baseUrl}/api/donors/${registered.user.id}`)
     assert.equal(publicProfile.status, 200)
     assert.equal('email' in (await publicProfile.json()).donor, false)
@@ -883,6 +1335,9 @@ test('registration, profiles, donor search, and cookie-based authentication life
     if (otherDonorExperienceId && mongoose.connection.readyState === 1) {
       await Experience.deleteOne({ _id: otherDonorExperienceId })
     }
+    if (badgeHistoryFixtureId && mongoose.connection.readyState === 1) {
+      await Experience.deleteOne({ _id: badgeHistoryFixtureId })
+    }
     if (createdExperience) {
       await removeImages(createdExperience.images || [createdExperience.photoUrl])
       if (mongoose.connection.readyState === 1) {
@@ -895,9 +1350,16 @@ test('registration, profiles, donor search, and cookie-based authentication life
       }
     }
     await User.deleteMany({ email: { $in: [email, unavailableEmail, privateEmail] } }).catch(() => {})
+    if (invalidBloodGroupFixtureIds.length && mongoose.connection.readyState === 1) {
+      await User.deleteMany({ _id: { $in: invalidBloodGroupFixtureIds } }).catch(() => {})
+    }
     if (profilePhotoUrl) {
       const { removeAvatar } = require('../src/services/experience-image-storage')
       await removeAvatar(profilePhotoUrl).catch(() => {})
+    }
+    if (registrationPhotoUrl) {
+      const { removeAvatar } = require('../src/services/experience-image-storage')
+      await removeAvatar(registrationPhotoUrl).catch(() => {})
     }
     await new Promise((resolve) => server.close(resolve))
     await mongoose.disconnect()

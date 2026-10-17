@@ -4,31 +4,36 @@ import Reveal from '../shared/Reveal'
 import { useAuth } from '../../contexts/useAuth'
 import { experienceApi } from '../../services/api/experienceApi'
 import DonorExperienceCard from './DonorExperienceCard'
+import { useLanguage } from '../../contexts/useLanguage'
+import { translateErrorMessage } from '../../contexts/translationUtils'
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 const PHOTO_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
 const MAX_PHOTOS = 5
 const TODAY = new Date().toISOString().slice(0, 10)
 
-function getSubmitErrorMessage(error) {
+function getSubmitErrorMessage(error, t) {
   if (error.status === 401 || error.code === 'AUTH_REQUIRED') {
-    return 'Please log in to share your experience.'
+    return t('গল্প শেয়ার করতে আগে লগ ইন করুন।')
   }
   if (error.code === 'INVALID_PHOTO_TYPE' || error.code === 'INVALID_PHOTO_CONTENT') {
-    return 'Only JPG, PNG, or WEBP images are allowed.'
+    return t('শুধু JPG, JPEG, PNG অথবা WebP ছবি নির্বাচন করুন।')
   }
-  if (error.code === 'PHOTO_TOO_LARGE') return 'Image size must be 5 MB or smaller.'
+  if (error.code === 'PHOTO_TOO_LARGE') return t('প্রতিটি ছবির আকার সর্বোচ্চ ৫ MB হতে হবে।')
   if (error.status >= 500 || (!error.status && error.name === 'TypeError')) {
-    return 'Unable to submit your experience. Please try again later.'
+    return t('আপনার অনুভূতি জমা দেওয়া যায়নি। পরে আবার চেষ্টা করুন।')
   }
 
   const fieldMessage = Object.values(error.fieldErrors || {})[0]
-  if (fieldMessage) return fieldMessage
-  if (error.message && error.message !== 'Validation failed.') return error.message
-  return 'Please check the highlighted fields and try again.'
+  if (fieldMessage) return t(fieldMessage)
+  if (error.message && error.message !== 'Validation failed.') return translateErrorMessage(error, t)
+  return t('চিহ্নিত তথ্যগুলো যাচাই করে আবার চেষ্টা করুন।')
 }
 
 function DonorExperiences() {
+  const { t } = useLanguage()
+  const translationRef = useRef(t)
+  translationRef.current = t
   const { status: authStatus, user, refresh } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -87,7 +92,7 @@ function DonorExperiences() {
         setLoadError('')
       },
       (requestError) => {
-        if (active) setLoadError(requestError.message)
+        if (active) setLoadError(translateErrorMessage(requestError, translationRef.current))
       },
     ).finally(() => {
       if (active) setLoading(false)
@@ -122,9 +127,9 @@ function DonorExperiences() {
             void refresh()
             return
           }
-          setMineState({ userId: user.id, experiences: [], error: requestError.message })
+          setMineState({ userId: user.id, experiences: [], error: translateErrorMessage(requestError, translationRef.current) })
           if (editId) {
-            setError(requestError.message)
+            setError(translateErrorMessage(requestError, translationRef.current))
             setSearchParams({}, { replace: true })
           }
         }
@@ -148,7 +153,7 @@ function DonorExperiences() {
           setModerationQueueState({
             userId: user.id,
             experiences: [],
-            error: requestError.message,
+            error: translateErrorMessage(requestError, translationRef.current),
           })
         }
       },
@@ -191,18 +196,18 @@ function DonorExperiences() {
     setError('')
     if (!selected.length) return
     if (retainedImages.length + photos.length + selected.length > MAX_PHOTOS) {
-      setFieldErrors((current) => ({ ...current, photos: 'সর্বোচ্চ ৫টি ছবি নির্বাচন করা যাবে।' }))
+      setFieldErrors((current) => ({ ...current, photos: t('সর্বোচ্চ ৫টি ছবি নির্বাচন করা যাবে।') }))
       event.target.value = ''
       return
     }
     const invalidType = selected.find((file) => !PHOTO_TYPES.has(file.type))
     if (invalidType) {
-      setFieldErrors((current) => ({ ...current, photos: 'শুধু JPG, JPEG, PNG অথবা WebP ছবি নির্বাচন করুন।' }))
+      setFieldErrors((current) => ({ ...current, photos: t('শুধু JPG, JPEG, PNG অথবা WebP ছবি নির্বাচন করুন।') }))
       event.target.value = ''
       return
     }
     if (selected.some((file) => file.size > MAX_PHOTO_BYTES)) {
-      setFieldErrors((current) => ({ ...current, photos: 'প্রতিটি ছবির আকার সর্বোচ্চ ৫ MB হতে হবে।' }))
+      setFieldErrors((current) => ({ ...current, photos: t('প্রতিটি ছবির আকার সর্বোচ্চ ৫ MB হতে হবে।') }))
       event.target.value = ''
       return
     }
@@ -264,8 +269,8 @@ function DonorExperiences() {
       else setPage(1)
     } catch (requestError) {
       setModerationQueueState((current) => current?.userId === user?.id
-        ? { ...current, error: requestError.message }
-        : { userId: user.id, experiences: [], error: requestError.message })
+        ? { ...current, error: translateErrorMessage(requestError, t) }
+        : { userId: user.id, experiences: [], error: translateErrorMessage(requestError, t) })
     } finally {
       setModerationSavingId('')
     }
@@ -276,13 +281,13 @@ function DonorExperiences() {
     if (submitting.current) return
     const validationErrors = {}
     if (form.message.trim().length < 20 || form.message.trim().length > 1000) {
-      validationErrors.message = 'আপনার অনুভূতি ২০ থেকে ১০০০ অক্ষরের মধ্যে লিখুন।'
+      validationErrors.message = t('আপনার অনুভূতি ২০ থেকে ১০০০ অক্ষরের মধ্যে লিখুন।')
     }
-    if (!form.donationDate) validationErrors.donationDate = 'রক্তদানের তারিখ নির্বাচন করুন।'
+    if (!form.donationDate) validationErrors.donationDate = t('রক্তদানের তারিখ নির্বাচন করুন।')
     const finalImageCount = retainedImages.length + photos.length
-    if (finalImageCount < 1) validationErrors.photos = 'অন্তত একটি ছবি রাখতে বা আপলোড করতে হবে।'
-    if (finalImageCount > MAX_PHOTOS) validationErrors.photos = 'সর্বোচ্চ ৫টি ছবি রাখা যাবে।'
-    if (!form.publicConsent) validationErrors.publicConsent = 'প্রকাশের সম্মতি প্রয়োজন।'
+    if (finalImageCount < 1) validationErrors.photos = t('অন্তত একটি ছবি রাখতে বা আপলোড করতে হবে।')
+    if (finalImageCount > MAX_PHOTOS) validationErrors.photos = t('সর্বোচ্চ ৫টি ছবি রাখা যাবে।')
+    if (!form.publicConsent) validationErrors.publicConsent = t('প্রকাশের সম্মতি প্রয়োজন।')
     setFieldErrors(validationErrors)
     if (Object.keys(validationErrors).length) return
 
@@ -303,7 +308,7 @@ function DonorExperiences() {
         ? await experienceApi.update(modal.experience.id, payload)
         : await experienceApi.create(payload)
     } catch (requestError) {
-      setError(getSubmitErrorMessage(requestError))
+      setError(getSubmitErrorMessage(requestError, t))
       setFieldErrors(requestError.fieldErrors || {})
       return
     } finally {
@@ -316,24 +321,24 @@ function DonorExperiences() {
     setPhotos([])
     setRetainedImages([])
     setFieldErrors({})
-    setNotice(result.message)
+    setNotice(t(result.message))
     try {
       await refreshExperiences()
       setLoadError('')
     } catch (requestError) {
-      setLoadError(requestError.message)
+      setLoadError(translateErrorMessage(requestError, t))
     }
   }
 
   async function deleteExperience(experience) {
-    if (!window.confirm('আপনি কি এই রক্তদানের গল্পটি মুছে ফেলতে চান?')) return
+    if (!window.confirm(t('আপনি কি এই রক্তদানের গল্পটি মুছে ফেলতে চান?'))) return
     setError('')
     try {
       await experienceApi.delete(experience.id)
       await refreshExperiences()
-      setNotice('আপনার অনুভূতি মুছে ফেলা হয়েছে।')
+      setNotice(t('আপনার অনুভূতি মুছে ফেলা হয়েছে।'))
     } catch (requestError) {
-      setError(requestError.message)
+      setError(translateErrorMessage(requestError, t))
     }
   }
 
@@ -347,25 +352,25 @@ function DonorExperiences() {
       <div className="section-container">
         <Reveal>
           <header className="section-heading donor-experiences-heading">
-            <span className="section-kicker">রক্তদানের গল্প</span>
-            <h1 id="donor-experiences-title">রক্তদাতার <span>অনুভূতি</span></h1>
-            <p>রক্তদানের পরের সত্যিকারের অনুভূতি ও অভিজ্ঞতা দেখুন এবং আপনার গল্প অন্যদের সঙ্গে ভাগ করুন।</p>
+            <span className="section-kicker">{t('রক্তদানের গল্প')}</span>
+            <h1 id="donor-experiences-title">{t('রক্তদাতার')} <span>{t('অনুভূতি')}</span></h1>
+            <p>{t('রক্তদানের পরের সত্যিকারের অনুভূতি ও অভিজ্ঞতা দেখুন এবং আপনার গল্প অন্যদের সঙ্গে ভাগ করুন।')}</p>
             <button className="button button-primary experience-share-button" onClick={openCreate} type="button">
-              আপনার অনুভূতি শেয়ার করুন <span aria-hidden="true">↗</span>
+              {t('আপনার অনুভূতি শেয়ার করুন')} <span aria-hidden="true">↗</span>
             </button>
           </header>
         </Reveal>
 
-        {notice && <p aria-live="polite" className="experience-notice" role="status">{notice}</p>}
-        {error && !modal && <p aria-live="polite" className="experience-error" role="alert">{error}</p>}
+        {notice && <p aria-live="polite" className="experience-notice" role="status">{t(notice)}</p>}
+        {error && !modal && <p aria-live="polite" className="experience-error" role="alert">{t(error)}</p>}
 
         {authStatus === 'authenticated' && user?.isExperienceModerator && (
           <section aria-labelledby="experience-moderation-title" className="my-experiences">
-            <h2 id="experience-moderation-title">গল্প পর্যালোচনা</h2>
-            {moderationError && <p className="experience-error" role="alert">{moderationError}</p>}
-            {moderationLoading && <p className="experience-state" role="status">পর্যালোচনার গল্প লোড হচ্ছে…</p>}
+            <h2 id="experience-moderation-title">{t('গল্প পর্যালোচনা')}</h2>
+            {moderationError && <p className="experience-error" role="alert">{t(moderationError)}</p>}
+            {moderationLoading && <p className="experience-state" role="status">{t('পর্যালোচনার গল্প লোড হচ্ছে…')}</p>}
             {!moderationLoading && moderationQueue.length === 0 && (
-              <p className="experience-state">পর্যালোচনার জন্য কোনো গল্প অপেক্ষায় নেই।</p>
+              <p className="experience-state">{t('পর্যালোচনার জন্য কোনো গল্প অপেক্ষায় নেই।')}</p>
             )}
             {moderationQueue.length > 0 && (
               <div className="experience-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
@@ -378,14 +383,14 @@ function DonorExperiences() {
                         onClick={() => moderateExperience(experience, 'approved')}
                         type="button"
                       >
-                        {moderationSavingId === experience.id ? 'সংরক্ষণ হচ্ছে…' : 'অনুমোদন করুন'}
+                        {moderationSavingId === experience.id ? t('সংরক্ষণ হচ্ছে…') : t('অনুমোদন করুন')}
                       </button>
                       <button
                         disabled={Boolean(moderationSavingId)}
                         onClick={() => moderateExperience(experience, 'rejected')}
                         type="button"
                       >
-                        প্রত্যাখ্যান করুন
+                        {t('প্রত্যাখ্যান করুন')}
                       </button>
                     </div>
                   </div>
@@ -397,8 +402,8 @@ function DonorExperiences() {
 
         {authStatus === 'authenticated' && mine.length > 0 && (
           <section aria-labelledby="my-experiences-title" className="my-experiences">
-            <h3 id="my-experiences-title">আপনার শেয়ার করা অনুভূতি</h3>
-            {mineError && <p className="experience-error" role="alert">{mineError}</p>}
+            <h3 id="my-experiences-title">{t('আপনার শেয়ার করা অনুভূতি')}</h3>
+            {mineError && <p className="experience-error" role="alert">{t(mineError)}</p>}
             <div className="experience-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {mine.filter(({ status }) => status !== 'approved').map((experience) => (
                 <DonorExperienceCard
@@ -413,18 +418,18 @@ function DonorExperiences() {
           </section>
         )}
         {authStatus === 'authenticated' && mineError && mine.length === 0 && (
-          <p className="experience-error" role="alert">আপনার শেয়ার করা অনুভূতি লোড করা যায়নি। {mineError}</p>
+          <p className="experience-error" role="alert">{t('আপনার শেয়ার করা অনুভূতি লোড করা যায়নি।')} {t(mineError)}</p>
         )}
 
-        {loading && <p className="experience-state" role="status">দাতাদের অনুভূতি লোড হচ্ছে…</p>}
+        {loading && <p className="experience-state" role="status">{t('দাতাদের অনুভূতি লোড হচ্ছে…')}</p>}
         {!loading && loadError && (
           <div className="experience-state" role="alert">
-            <p>দাতাদের অনুভূতি এখন লোড করা যাচ্ছে না। {loadError}</p>
-            <button className="button button-secondary" onClick={() => { setLoading(true); setRetry((current) => current + 1) }} type="button">আবার চেষ্টা করুন</button>
+            <p>{t('দাতাদের অনুভূতি এখন লোড করা যাচ্ছে না।')} {t(loadError)}</p>
+            <button className="button button-secondary" onClick={() => { setLoading(true); setRetry((current) => current + 1) }} type="button">{t('আবার চেষ্টা করুন')}</button>
           </div>
         )}
         {!loading && !loadError && feed.experiences.length === 0 && (
-          <p className="experience-state" role="status">এখনো কোনো অনুমোদিত দাতার অনুভূতি প্রকাশিত হয়নি। আপনি চাইলে আপনার গল্পটি শেয়ার করতে পারেন।</p>
+          <p className="experience-state" role="status">{t('এখনো কোনো অনুমোদিত দাতার অনুভূতি প্রকাশিত হয়নি। আপনি চাইলে আপনার গল্পটি শেয়ার করতে পারেন।')}</p>
         )}
         {!loading && !loadError && feed.experiences.length > 0 && (
           <>
@@ -443,10 +448,10 @@ function DonorExperiences() {
               })}
             </div>
             {feed.pagination.pages > 1 && (
-              <nav aria-label="দাতার অনুভূতির পৃষ্ঠা" className="experience-pagination">
-                <button disabled={page <= 1} onClick={() => { setLoading(true); setPage((current) => current - 1) }} type="button">আগের পৃষ্ঠা</button>
-                <span>পৃষ্ঠা {page} / {feed.pagination.pages}</span>
-                <button disabled={page >= feed.pagination.pages} onClick={() => { setLoading(true); setPage((current) => current + 1) }} type="button">পরের পৃষ্ঠা</button>
+              <nav aria-label={t('দাতার অনুভূতির পৃষ্ঠা')} className="experience-pagination">
+                <button disabled={page <= 1} onClick={() => { setLoading(true); setPage((current) => current - 1) }} type="button">{t('আগের পৃষ্ঠা')}</button>
+                <span>{t('পৃষ্ঠা')} {page} / {feed.pagination.pages}</span>
+                <button disabled={page >= feed.pagination.pages} onClick={() => { setLoading(true); setPage((current) => current + 1) }} type="button">{t('পরের পৃষ্ঠা')}</button>
               </nav>
             )}
           </>
@@ -458,12 +463,12 @@ function DonorExperiences() {
           if (event.target === event.currentTarget) setModal(null)
         }}>
           <section aria-labelledby="experience-login-title" aria-modal="true" className="experience-modal experience-login-modal" role="dialog">
-            <button aria-label="বন্ধ করুন" className="experience-modal-close" onClick={() => setModal(null)} type="button">×</button>
-            <h3 id="experience-login-title">আপনার গল্প শেয়ার করুন</h3>
-            <p>অনুভূতি শেয়ার করতে আগে আপনার দাতা অ্যাকাউন্টে লগ ইন করুন অথবা নিবন্ধন করুন।</p>
+            <button aria-label={t('বন্ধ করুন')} className="experience-modal-close" onClick={() => setModal(null)} type="button">×</button>
+            <h3 id="experience-login-title">{t('আপনার গল্প শেয়ার করুন')}</h3>
+            <p>{t('অনুভূতি শেয়ার করতে আগে আপনার দাতা অ্যাকাউন্টে লগ ইন করুন অথবা নিবন্ধন করুন।')}</p>
             <div className="experience-modal-actions">
-              <button className="button button-primary" onClick={() => navigate('/login')} type="button">লগ ইন</button>
-              <button className="button button-secondary" onClick={() => navigate('/register')} type="button">নিবন্ধন</button>
+              <button className="button button-primary" onClick={() => navigate('/login')} type="button">{t('লগ ইন')}</button>
+              <button className="button button-secondary" onClick={() => navigate('/register')} type="button">{t('নিবন্ধন')}</button>
             </div>
           </section>
         </div>
@@ -474,17 +479,17 @@ function DonorExperiences() {
           if (event.target === event.currentTarget && !saving) setModal(null)
         }}>
           <section aria-labelledby="experience-form-title" aria-modal="true" className="experience-modal" role="dialog">
-            <button aria-label="বন্ধ করুন" className="experience-modal-close" disabled={saving} onClick={() => setModal(null)} type="button">×</button>
-            <h3 id="experience-form-title">{currentExperience ? 'আপনার অনুভূতি সম্পাদনা করুন' : 'আপনার অনুভূতি শেয়ার করুন'}</h3>
+            <button aria-label={t('বন্ধ করুন')} className="experience-modal-close" disabled={saving} onClick={() => setModal(null)} type="button">×</button>
+            <h3 id="experience-form-title">{currentExperience ? t('আপনার অনুভূতি সম্পাদনা করুন') : t('আপনার অনুভূতি শেয়ার করুন')}</h3>
             <p className="experience-profile-summary">
               {currentExperience
                 ? `${currentExperience.donorName} · ${currentExperience.publicUserId} · ${currentExperience.bloodGroup} · ${currentExperience.division}, ${currentExperience.district}`
                 : `${user?.fullName} · ${user?.userId} · ${user?.bloodGroup} · ${user?.division}, ${user?.district}`}
             </p>
-            {error && <p className="experience-error" role="alert">{error}</p>}
+            {error && <p className="experience-error" role="alert">{t(error)}</p>}
             <form className="experience-form" onSubmit={submitExperience}>
               <div className="experience-photo-field">
-                <label htmlFor="experience-photos">ছবি আপলোড করুন (সর্বোচ্চ ৫টি){currentExperience ? ' · নতুন ছবি ঐচ্ছিক' : ' · অন্তত ১টি আবশ্যক'}</label>
+                <label htmlFor="experience-photos">{t('ছবি আপলোড করুন (সর্বোচ্চ ৫টি)')}{currentExperience ? ` · ${t('নতুন ছবি ঐচ্ছিক')}` : ` · ${t('অন্তত ১টি আবশ্যক')}`}</label>
                 <input
                   accept="image/jpeg,image/jpg,image/png,image/webp"
                   aria-invalid={Boolean(fieldErrors.photos)}
@@ -494,14 +499,14 @@ function DonorExperiences() {
                   onChange={selectPhotos}
                   type="file"
                 />
-                <small>JPG, JPEG, PNG অথবা WebP · প্রতিটি সর্বোচ্চ ৫ MB</small>
-                {fieldErrors.photos && <small className="experience-field-error">{fieldErrors.photos}</small>}
+                <small>{t('JPG, JPEG, PNG অথবা WebP · প্রতিটি সর্বোচ্চ ৫ MB')}</small>
+                  {fieldErrors.photos && <small className="experience-field-error">{t(fieldErrors.photos)}</small>}
                 {currentExperience?.images?.length > 0 && (
                   <div className="experience-photo-previews">
                   {retainedImages.map((image, index) => (
                     <div className="experience-photo-preview-item" key={image}>
-                      <img alt={`বর্তমান ছবি ${index + 1}`} className="experience-photo-preview" src={image} />
-                      <button aria-label={`বর্তমান ছবি ${index + 1} সরান`} onClick={() => removeExistingImage(image)} type="button">×</button>
+                      <img alt={t('বর্তমান ছবি {number}', { number: index + 1 })} className="experience-photo-preview" src={image} />
+                      <button aria-label={t('বর্তমান ছবি {number} সরান', { number: index + 1 })} onClick={() => removeExistingImage(image)} type="button">×</button>
                     </div>
                   ))}
                 </div>
@@ -510,39 +515,39 @@ function DonorExperiences() {
                   <div className="experience-photo-previews">
                     {previews.map(({ file, url }, index) => (
                       <div className="experience-photo-preview-item" key={`${file.name}-${file.lastModified}-${index}`}>
-                        <img alt={`ছবির প্রিভিউ ${index + 1}`} className="experience-photo-preview" src={url} />
-                        <button aria-label={`ছবি ${index + 1} সরান`} onClick={() => removeSelectedPhoto(index)} type="button">×</button>
+                        <img alt={t('ছবির প্রিভিউ {number}', { number: index + 1 })} className="experience-photo-preview" src={url} />
+                        <button aria-label={t('ছবি {number} সরান', { number: index + 1 })} onClick={() => removeSelectedPhoto(index)} type="button">×</button>
                       </div>
                     ))}
                   </div>
                 )}
                 {currentExperience && (
-                  <small>মোট ছবি: {retainedImages.length + photos.length} / ৫। সংরক্ষিত ছবি রাখতে বা সরাতে পারবেন।</small>
+                  <small>{t('মোট ছবি:')} {retainedImages.length + photos.length} / 5. {t('সংরক্ষিত ছবি রাখতে বা সরাতে পারবেন।')}</small>
                 )}
               </div>
               <label className="experience-form-field">
-                <span>রক্তদানের তারিখ</span>
+                <span>{t('রক্তদানের তারিখ')}</span>
                 <input aria-invalid={Boolean(fieldErrors.donationDate)} max={TODAY} name="donationDate" onChange={updateForm} required type="date" value={form.donationDate} />
-                {fieldErrors.donationDate && <small className="experience-field-error">{fieldErrors.donationDate}</small>}
+                {fieldErrors.donationDate && <small className="experience-field-error">{t(fieldErrors.donationDate)}</small>}
               </label>
               <label className="experience-form-field">
-                <span>আপনার অনুভূতি</span>
-                <textarea aria-invalid={Boolean(fieldErrors.message)} maxLength={1000} minLength={20} name="message" onChange={updateForm} placeholder="রক্তদানের অভিজ্ঞতা ও অনুভূতি লিখুন…" required rows={5} value={form.message} />
+                <span>{t('আপনার অনুভূতি')}</span>
+                <textarea aria-invalid={Boolean(fieldErrors.message)} maxLength={1000} minLength={20} name="message" onChange={updateForm} placeholder={t('রক্তদানের অভিজ্ঞতা ও অনুভূতি লিখুন…')} required rows={5} value={form.message} />
                 <small>{form.message.length}/1000</small>
-                {fieldErrors.message && <small className="experience-field-error">{fieldErrors.message}</small>}
+                {fieldErrors.message && <small className="experience-field-error">{t(fieldErrors.message)}</small>}
               </label>
               <label className="experience-form-field">
-                <span>মোট রক্তদানের সংখ্যা <em>(ঐচ্ছিক)</em></span>
-                <input max="1000" min="1" name="donationCount" onChange={updateForm} placeholder="যেমন ৩" type="number" value={form.donationCount} />
-                {fieldErrors.donationCount && <small className="experience-field-error">{fieldErrors.donationCount}</small>}
+                <span>{t('মোট রক্তদানের সংখ্যা')} <em>({t('ঐচ্ছিক')})</em></span>
+                <input max="1000" min="1" name="donationCount" onChange={updateForm} placeholder={t('যেমন ৩')} type="number" value={form.donationCount} />
+                {fieldErrors.donationCount && <small className="experience-field-error">{t(fieldErrors.donationCount)}</small>}
               </label>
               <label className="experience-consent">
                 <input checked={form.publicConsent} name="publicConsent" onChange={updateForm} type="checkbox" />
-                <span>আমার অনুভূতি ও ছবি সবার জন্য প্রকাশ করতে সম্মত। প্রকাশের আগে এটি অনুমোদনের জন্য পর্যালোচনা করা হবে।</span>
+                <span>{t('আমার অনুভূতি ও ছবি সবার জন্য প্রকাশ করতে সম্মত। প্রকাশের আগে এটি অনুমোদনের জন্য পর্যালোচনা করা হবে।')}</span>
               </label>
-              {fieldErrors.publicConsent && <small className="experience-field-error">{fieldErrors.publicConsent}</small>}
+              {fieldErrors.publicConsent && <small className="experience-field-error">{t(fieldErrors.publicConsent)}</small>}
               <button className="button button-primary experience-submit" disabled={saving} type="submit">
-                {saving ? 'জমা হচ্ছে…' : currentExperience ? 'পর্যালোচনার জন্য পাঠান' : 'অনুভূতি জমা দিন'}
+                {saving ? t('জমা হচ্ছে…') : currentExperience ? t('পর্যালোচনার জন্য পাঠান') : t('অনুভূতি জমা দিন')}
               </button>
             </form>
           </section>

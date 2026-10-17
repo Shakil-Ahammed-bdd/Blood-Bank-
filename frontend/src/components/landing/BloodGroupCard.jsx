@@ -1,7 +1,10 @@
+import { useLanguage } from '../../contexts/useLanguage'
+
 function BloodGroupCard({ group, index }) {
+  const { t } = useLanguage()
   return (
     <article
-      aria-label={`রক্তের গ্রুপ ${group}`}
+      aria-label={`${t('রক্তের গ্রুপ')} ${group}`}
       className="blood-group-card"
       style={{ '--card-order': index }}
     >
@@ -11,7 +14,7 @@ function BloodGroupCard({ group, index }) {
           <path d="M11.5 22c.2 2.5 1.6 4 4 4.7" stroke="white" strokeLinecap="round" strokeWidth="2" opacity=".65" />
         </svg>
       </span>
-      <span className="group-label">রক্তের গ্রুপ</span>
+      <span className="group-label">{t('রক্তের গ্রুপ')}</span>
       <strong>{group}</strong>
     </article>
   )

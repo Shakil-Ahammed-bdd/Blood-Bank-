@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom'
 import DonorCard from './DonorCard'
 import Reveal from '../shared/Reveal'
 import { donorApi } from '../../services/api/donorApi'
+import { useLanguage } from '../../contexts/useLanguage'
+import { translateErrorMessage } from '../../contexts/translationUtils'
 
 function fetchRecentDonors() {
   return donorApi.list({ sort: 'recent', availability: 'all', page: 1, limit: 6 })
 }
 
 function RecentDonors() {
+  const { t } = useLanguage()
   const [donors, setDonors] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -20,11 +23,11 @@ function RecentDonors() {
       const result = await fetchRecentDonors()
       setDonors(result.donors)
     } catch (requestError) {
-      setError(requestError.message)
+      setError(translateErrorMessage(requestError, t))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     let active = true
@@ -33,13 +36,13 @@ function RecentDonors() {
         if (active) setDonors(result.donors)
       },
       (requestError) => {
-        if (active) setError(requestError.message)
+        if (active) setError(translateErrorMessage(requestError, t))
       },
     ).finally(() => {
       if (active) setLoading(false)
     })
     return () => { active = false }
-  }, [])
+  }, [t])
 
   return (
     <section aria-labelledby="recent-donors-title" className="section recent-donors-section" id="recent-donors">
@@ -54,19 +57,19 @@ function RecentDonors() {
                 </svg>
               </span>
               <div>
-                <span className="section-kicker">আমাদের দাতা</span>
-                <h2 id="recent-donors-title">সাম্প্রতিক নিবন্ধিত <span>রক্তদাতা</span></h2>
-                <p>যারা স্বেচ্ছায় নিজেদের দাতা প্রোফাইল প্রকাশে সম্মতি দিয়েছেন।</p>
+                <span className="section-kicker">{t('আমাদের দাতা')}</span>
+                <h2 id="recent-donors-title">{t('সাম্প্রতিক নিবন্ধিত')} <span>{t('রক্তদাতা')}</span></h2>
+                <p>{t('যারা স্বেচ্ছায় নিজেদের দাতা প্রোফাইল প্রকাশে সম্মতি দিয়েছেন।')}</p>
               </div>
             </div>
             <Link className="button button-secondary recent-view-all" to="/donors">
-              সব ডোনার দেখুন <span aria-hidden="true">↗</span>
+              {t('সব ডোনার দেখুন')} <span aria-hidden="true">↗</span>
             </Link>
           </div>
         </Reveal>
 
         {loading && (
-          <div aria-busy="true" aria-label="সাম্প্রতিক দাতা লোড হচ্ছে" className="recent-donors-grid">
+          <div aria-busy="true" aria-label={t('সাম্প্রতিক দাতা লোড হচ্ছে')} className="recent-donors-grid">
             {Array.from({ length: 3 }, (_, index) => (
               <div className="donor-card donor-card-skeleton" key={index}>
                 <span />
@@ -79,17 +82,17 @@ function RecentDonors() {
 
         {!loading && error && (
           <div className="donor-directory-state" role="alert">
-            <p>সাম্প্রতিক দাতাদের তথ্য এখন লোড করা যাচ্ছে না। {error}</p>
+            <p>{t('সাম্প্রতিক দাতাদের তথ্য এখন লোড করা যাচ্ছে না।')} {t(error)}</p>
             <button className="button button-secondary" onClick={() => void loadDonors()} type="button">
-              আবার চেষ্টা করুন
+              {t('আবার চেষ্টা করুন')}
             </button>
           </div>
         )}
 
         {!loading && !error && donors.length === 0 && (
           <div className="donor-directory-state" role="status">
-            <p>এখনো কোনো দাতা পাবলিক প্রোফাইল প্রকাশে সম্মতি দেননি।</p>
-            <Link className="button button-primary" to="/register">দাতা হিসেবে যুক্ত হোন</Link>
+            <p>{t('এখনো কোনো দাতা পাবলিক প্রোফাইল প্রকাশে সম্মতি দেননি।')}</p>
+            <Link className="button button-primary" to="/register">{t('দাতা হিসেবে যুক্ত হোন')}</Link>
           </div>
         )}
 
@@ -101,7 +104,7 @@ function RecentDonors() {
 
         <div className="recent-donors-footer">
           <Link className="button button-secondary" to="/donors">
-            আরও দেখুন <span aria-hidden="true">→</span>
+            {t('আরও দেখুন')} <span aria-hidden="true">→</span>
           </Link>
         </div>
       </div>

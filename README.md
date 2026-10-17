@@ -5,6 +5,172 @@ includes the responsive blood-donation landing page and MongoDB-backed
 registration, individual profile editing, and opt-in donor search using JWTs in
 HttpOnly cookies.
 
+## Recent Updates
+
+- Removed the Navbar's duplicate **“রক্ত দান করুন”** registration button. Logged-out
+  users use the existing **Login** and **Registration** links instead; the
+  separate donation call to action on the homepage remains.
+- After login or registration, the Navbar uses the authenticated user's actual
+  profile image when available, otherwise showing a themed initials/icon
+  fallback, alongside their name. Login and Registration are not shown while
+  authenticated.
+- Added a responsive profile dropdown with exactly **Profile**, **Profile
+  Edit**, and **Logout** actions. It reuses the existing `/profile` and
+  `/profile?edit=1` routes and the existing authentication provider/logout API.
+- The profile menu supports keyboard dismissal, outside-click dismissal, and
+  responsive layouts across desktop, tablet, and mobile.
+- Authentication continues to use the existing safe current-user response and
+  HttpOnly cookie session; credentials and tokens are not rendered in the
+  Navbar.
+
+## Authentication Navigation Fix
+
+- Home navigation from other routes now uses React Router links instead of a
+  full-page browser navigation, keeping the existing root-level auth provider
+  mounted while navigating between Home and `/donor-experiences`.
+- Public donor experiences remain viewable without authentication; browsing
+  between these routes does not call logout or clear the session.
+- Auth restoration continues through `/api/auth/me`. Initial loading remains
+  distinct from unauthenticated status, and a temporary current-user request
+  failure does not discard an already authenticated in-memory user. An
+  explicit 401 still transitions to unauthenticated; existing logout behavior
+  continues to clear the server cookie.
+
+## Section Navigation Fix
+
+- Navbar links for **আমাদের সম্পর্কে** and **রক্ত খুঁজুন** now smoothly scroll
+  to the existing Home sections (`#about` and `#find-blood`). They work from
+  Home and other routes, including the public donor-experiences page, without
+  adding duplicate sections or reloading the application.
+- Home section navigation accounts for the sticky Navbar offset, and the
+  existing section scroll margin keeps headings visible after navigation.
+
+## Live Impact Statistics
+
+- The Home banner's **Live Impact** panel loads its total registered-user count,
+  distribution across all eight valid blood groups, and registration counts
+  grouped by UTC year and month from the public `GET /api/stats/live-impact`
+  endpoint. MongoDB performs the aggregation; the endpoint returns only
+  aggregate values and no user records.
+- The panel fetches current database statistics when the Home page loads, and
+  chart values are never substituted with demo values. It shows loading and
+  retryable error states when data cannot be retrieved.
+- Responsive Chart.js doughnut and bar charts present blood-group and
+  year-specific monthly data side by side on larger screens and stacked on
+  mobile.
+
+## Top Blood Donor Leaderboard
+
+- The public Top 10 leaderboard ranks donors who opted into public search by
+  lifetime donations: their pre-registration donation count plus unique
+  donation dates logged on the website. Duplicate dates count once.
+- Equal donation totals are ordered by newest registration date, then stable
+  database ID order. The backend returns only opted-in public profile fields
+  and aggregate donation counts; users with no donations are excluded.
+- The leaderboard is available to logged-in and logged-out visitors at
+  `/top-donors`, linked from the Navbar, and is no longer shown on the Home page.
+- The page displays only each donor's profile photo, name, and total lifetime
+  donation count. Selecting the photo or name opens the existing public donor
+  profile. The leaderboard is refreshed when `/top-donors` loads, so newly
+  logged donation dates affect the next displayed ranking.
+
+## Multilingual Support
+
+- The interface supports Bangla and English, with Bangla selected by default
+  for first-time visitors.
+- A language toggle remains beside the account controls in the Navbar for both
+  signed-in and public visitors.
+- The selected language is saved in `localStorage` under `language` and is
+  restored on the next visit or page refresh.
+- Language changes update the current React view immediately without changing
+  the route, reloading the page, or modifying the authentication session.
+- Shared translation dictionaries provide Bangla and English UI copy across
+  the Navbar, Home and donor search, authentication and profile forms, donor
+  directory and public profiles, donation badges, and donor stories. Names,
+  locations, blood-group values, donation counts, and other donor-supplied
+  profile data are not translated.
+
+## Shared Footer
+
+- All application routes use the shared responsive footer, with an animated
+  donor-to-recipient blood-flow illustration and Bangla/English messages.
+- The lightweight CSS animation respects `prefers-reduced-motion`, where the
+  visual becomes static.
+- The footer includes developer information for Md. Shakil Ahammed, including
+  role, education, and a short project description. No unverified social links
+  or profile image are shown.
+
+### Donor registration, profiles, and search
+
+- Extended the existing `/register` and `/profile` forms with optional
+  WhatsApp contact details, a separate opt-in for public contact visibility,
+  donation history, and district-dependent upazila selection. Registration can
+  optionally include a profile photo, stored with the existing image-processing
+  and avatar-storage flow.
+- Added an explicit browser-geolocation action to registration and profile
+  editing. Coordinates are saved to the signed-in user's account and are not
+  included in public donor search or public donor profiles. No geocoder is
+  configured, so donors enter a readable address in the existing location
+  field.
+- Donor availability is now calculated by the backend from the last donation
+  date: a donor becomes available after 120 complete UTC calendar days. The
+  frontend cannot submit an availability override.
+- Search results and public donor profiles reuse the existing MongoDB donor
+  API and display profile-photo fallbacks, upazila, donation history, and
+  availability. Contact details remain private by default (including for
+  existing accounts); a separate donor opt-in is required before phone or
+  supplied WhatsApp numbers appear publicly. The existing card/profile then
+  provide call/copy actions and WhatsApp when supplied. Email, coordinates,
+  and authentication secrets are not included in public donor data.
+- Added a shared Bangladesh upazila lookup with 64 districts and 494 upazilas.
+  Its source and MIT license notice are recorded in
+  [`shared/BANGLADESH-GEOCODE-LICENSE.txt`](./shared/BANGLADESH-GEOCODE-LICENSE.txt).
+- Relevant existing UI/API files include
+  `frontend/src/pages/RegisterPage.jsx`,
+  `frontend/src/pages/ProfilePage.jsx`,
+  `frontend/src/components/landing/BloodSearch.jsx`,
+  `frontend/src/components/landing/DonorCard.jsx`,
+  `frontend/src/pages/DonorProfilePage.jsx`,
+  `backend/src/models/User.js`, and
+  `backend/src/services/donor.service.js`. No replacement authentication,
+  profile, or donor-data system was added.
+
+### Donor Badge System
+
+- Added four backend-calculated donation badges: **Bronze Donor** at 1
+  donation, **Silver Donor** at 3, **Gold Donor** at 5, and **Platinum Donor**
+  at 10. Zero donations show **New Donor**. Totals use the sum of the
+  pre-registration `previousBloodDonations` count and unique donation dates
+  explicitly logged on the authenticated profile; donor-story dates and their
+  optional story counts do not affect this total.
+- The authenticated profile API calculates and returns the badge, lifetime
+  total, pre-registration/logged count breakdown, progress to the next level,
+  and newest-first logged donation dates. Public donor cards and profiles
+  receive only the compact badge summary and total, not donation history.
+- The profile's **Your Donor Badge** section appears below **আমার অনুভূতি** and
+  shows the level, lifetime count, dynamic progress, and actual logged
+  donation dates. Donor cards show a compact badge; searchable public donor
+  profiles show the badge and total only.
+
+### Donation Logging System
+
+- Users can record their last donation date from **Log or Update Donation
+  Date** on their own profile. The authenticated `POST
+  /api/users/profile/donation-history` endpoint derives ownership from the
+  session, accepts a strict `YYYY-MM-DD` date, and rejects malformed, future,
+  and pre-registration dates.
+- Each UTC calendar date can be logged only once for a user. Re-submitting the
+  same date is idempotent; dates are stored in the user's donation history and
+  shown newest first. The profile's `lastDonationDate` advances only when a
+  newer date is logged, so older history entries cannot incorrectly reset the
+  availability clock.
+- Registration-time `previousBloodDonations` remains the pre-joining total.
+  Profile edits cannot directly change this count or `lastDonationDate`; new
+  post-registration donations must be recorded through the authenticated
+  logging endpoint. No donation-history removal control is exposed.
+- Donor availability continues to be calculated by the backend from the
+  authoritative latest donation date and existing 120-day eligibility rule.
+
 ## Technology stack
 
 - **Frontend:** React 19, Vite 8, Tailwind CSS 4
@@ -31,6 +197,9 @@ supported modern Node version).
 │   ├── package-lock.json
 │   ├── test/
 │   │   ├── auth.integration.test.js
+│   │   ├── auth-validation.test.js
+│   │   ├── donation-eligibility.test.js
+│   │   ├── donor-badge.test.js
 │   │   └── health.service.test.js
 │   └── src/
 │       ├── app.js
@@ -67,6 +236,7 @@ supported modern Node version).
 │       │   └── user.routes.js
 │       ├── services/
 │       │   ├── auth.service.js
+│       │   ├── donor-badge.service.js
 │       │   ├── donor.service.js
 │       │   ├── experience-image-storage.js
 │       │   ├── experience-social.service.js
@@ -76,7 +246,12 @@ supported modern Node version).
 │       └── utils/
 │           ├── auth-validation.js
 │           ├── bangladesh-locations.js
+│           ├── donor-badge.js
+│           ├── donation-eligibility.js
 │           └── experience-validation.js
+├── shared/
+│   ├── BANGLADESH-GEOCODE-LICENSE.txt
+│   └── bangladesh-upazilas.json
 └── frontend/
     ├── package.json
     ├── package-lock.json
@@ -92,6 +267,8 @@ supported modern Node version).
         ├── reference-theme.css
         ├── main.jsx
         ├── components/
+        │   ├── profile/
+        │   │   └── DonorBadgeSection.jsx
         │   ├── auth/
         │   │   ├── AuthField.jsx
         │   │   ├── AuthLayout.jsx
@@ -101,9 +278,9 @@ supported modern Node version).
         │   ├── landing/
         │   │   ├── BloodGroupCard.jsx
         │   │   ├── BloodGroups.jsx
-        │   │   ├── BloodRequest.jsx
         │   │   ├── BloodSearch.jsx
         │   │   ├── DonorCard.jsx
+        │   │   ├── DonorContactActions.jsx
         │   │   ├── DonorExperienceCard.jsx
         │   │   ├── DonorExperiences.jsx
         │   │   ├── Hero.jsx
@@ -143,6 +320,9 @@ supported modern Node version).
         │       └── profileApi.js
         └── utils/
             ├── bangladeshLocations.js
+            ├── bangladeshUpazilas.js
+            ├── currentLocation.js
+            ├── formatDonationDate.js
             └── healthStatus.js
 ```
 
@@ -159,8 +339,9 @@ the current page does not import or depend on them.
 - `HomePage` composes the landing page from the reusable `Navbar` and `Hero`
   components. `HeroIllustration` keeps the original custom illustration
   separate from its copy and calls to action.
-- `Navbar` owns accessible mobile-menu state and reusable navigation links;
-  the supplied organization logo is used as an image asset, not recreated.
+- `Navbar` owns accessible mobile-menu and profile-menu state, reuses the
+  existing login, registration, profile, profile-edit, and logout flows, and
+  uses the supplied organization logo as an image asset.
 - `reference-theme.css` defines the dark palette, red action color, high-contrast
   type, and shared component states based on the supplied visual reference.
 - Design tokens use near-black `#080a10` page surfaces, charcoal cards, and
@@ -172,7 +353,7 @@ the current page does not import or depend on them.
 - `SectionHeading` provides consistent title, kicker, and description
   hierarchy across the landing page.
 - The independent landing sections are `BloodSearch`, `RecentDonors`,
-  `BloodRequest`, `HowItWorks`, `BloodGroups`, and `ImpactStats`.
+  `HowItWorks`, `BloodGroups`, and `ImpactStats`.
   `BloodGroupCard` is reused for all eight blood groups; `Reveal` provides
   shared scroll-entry animation.
 - `HealthStatusCard` remains reusable for the health page and exposes retry as a
@@ -265,6 +446,12 @@ the current page does not import or depend on them.
   protected from profile updates.
 - Profile deletion requires explicit confirmation, deletes only the
   authenticated user's account, and clears the session cookie.
+- The Profile page places account deletion in a dedicated Danger Zone at the
+  bottom of its content. The delete action explains that profile data, donation
+  history, and badge progress will be permanently removed, then requires
+  explicit confirmation. It reuses the existing authenticated profile-delete
+  API; on success the session is cleared, frontend auth state is reset, and
+  the user is redirected to Home with a success notice.
 - Donor search requires explicit opt-in. Public donor cards and profile
   responses contain only name, User ID, blood group, division, district,
   location, and availability; email and phone remain private.

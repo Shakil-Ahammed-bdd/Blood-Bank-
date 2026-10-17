@@ -2,6 +2,9 @@ const mongoose = require('mongoose')
 const User = require('../models/User')
 const HttpError = require('../errors/http-error')
 const { getPublicProfile } = require('./user.service')
+const { donationEligibilityCutoff, isAvailableToDonate } = require('../utils/donation-eligibility')
+const upazilas = require('../../../shared/bangladesh-upazilas.json')
+const { getDonorBadges } = require('./donor-badge.service')
 
 const BLOOD_GROUPS = new Set(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'])
 const DIVISIONS = require('../utils/bangladesh-locations')
@@ -11,6 +14,7 @@ const ALLOWED_FILTERS = new Set([
   'bloodGroup',
   'division',
   'district',
+  'upazila',
   'location',
   'availability',
   'sort',
@@ -30,8 +34,18 @@ function publicDonor(user) {
     bloodGroup: user.bloodGroup,
     division: user.division,
     district: user.district,
+    upazila: user.upazila || '',
     location: user.location,
-    isDonorAvailable: user.isDonorAvailable,
+    ...(user.isContactPublic
+      ? {
+          phone: user.phone,
+          ...(user.whatsappNumber ? { whatsappNumber: user.whatsappNumber } : {}),
+        }
+      : {}),
+    lastDonationDate: user.lastDonationDate || null,
+    previousBloodDonations: user.previousBloodDonations || 0,
+    isAvailableToDonate: isAvailableToDonate(user.lastDonationDate),
+    donorBadge: user.donorBadge,
     profilePhotoUrl: user.profilePhotoUrl || '',
     ...(user.createdAt ? { createdAt: user.createdAt } : {}),
   }
@@ -59,6 +73,17 @@ function parseFilters(query) {
       filters.district = query.district
     }
   }
+  if (query.upazila) {
+    if (
+      typeof query.upazila !== 'string' ||
+      !query.district ||
+      !(upazilas[query.district] || []).includes(query.upazila)
+    ) {
+      fieldErrors.upazila = 'Select an upazila within the chosen district.'
+    } else {
+      filters.upazila = query.upazila
+    }
+  }
   if (query.location) {
     if (typeof query.location !== 'string' || query.location.trim().length > 80) {
       fieldErrors.location = 'Location search must be 80 characters or fewer.'
@@ -73,9 +98,15 @@ function parseFilters(query) {
     ) {
       fieldErrors.availability = 'Choose available, unavailable, or all donors.'
     } else if (query.availability === 'available') {
-      filters.isDonorAvailable = true
+      const cutoff = donationEligibilityCutoff()
+      filters.$or = [
+        { lastDonationDate: { $exists: false } },
+        { lastDonationDate: null },
+        { lastDonationDate: { $lte: cutoff } },
+      ]
     } else if (query.availability === 'unavailable') {
-      filters.isDonorAvailable = false
+      const cutoff = donationEligibilityCutoff()
+      filters.lastDonationDate = { $gt: cutoff, $lte: new Date() }
     }
   }
   if (query.sort !== undefined && query.sort !== 'recent') {
@@ -106,15 +137,20 @@ async function searchDonors(query) {
   const sort = query.sort === 'recent' ? { createdAt: -1, _id: -1 } : { fullName: 1, _id: 1 }
   const [users, total] = await Promise.all([
     User.find(criteria)
-      .select('userId fullName bloodGroup division district location isDonorAvailable profilePhotoUrl createdAt')
+      .select('userId fullName phone whatsappNumber isContactPublic bloodGroup division district upazila location lastDonationDate previousBloodDonations donationHistory profilePhotoUrl createdAt')
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),
     User.countDocuments(criteria),
   ])
+  const badges = await getDonorBadges(users)
   return {
-    donors: users.map((user) => publicDonor({ ...user, id: String(user._id) })),
+    donors: users.map((user) => publicDonor({
+      ...user,
+      id: String(user._id),
+      donorBadge: badges.get(String(user._id)),
+    })),
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   }
 }

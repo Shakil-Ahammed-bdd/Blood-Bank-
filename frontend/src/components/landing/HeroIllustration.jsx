@@ -1,6 +1,9 @@
+import { useLanguage } from '../../contexts/useLanguage'
+
 function HeroIllustration() {
+  const { t } = useLanguage()
   return (
-    <div className="hero-art" aria-label="রক্তদান জীবন বাঁচাতে সহায়তা করে" role="img">
+    <div className="hero-art" aria-label={t('রক্তদান জীবন বাঁচাতে সহায়তা করে')} role="img">
       <div className="art-orbit art-orbit-one" />
       <div className="art-orbit art-orbit-two" />
       <div className="art-sun" />
@@ -9,8 +12,8 @@ function HeroIllustration() {
       <div className="art-caption">
         <span className="caption-heart" aria-hidden="true">♥</span>
         <span>
-          <strong>আপনার দান</strong>
-          <small>কারও নতুন সকাল</small>
+          <strong>{t('আপনার দান')}</strong>
+          <small>{t('কারও নতুন সকাল')}</small>
         </span>
       </div>
 

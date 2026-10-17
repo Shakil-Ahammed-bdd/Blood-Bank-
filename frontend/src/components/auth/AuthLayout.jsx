@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom'
+import { useLanguage } from '../../contexts/useLanguage'
 
 function AuthLayout({ children, eyebrow, subtitle, title }) {
+  const { t } = useLanguage()
   return (
     <main className="auth-page">
       <section aria-labelledby="auth-title" className="auth-card">
-        <Link aria-label="আহ্বান রক্তদান সংস্থা — হোমে ফিরুন" className="auth-brand" to="/">
+        <Link aria-label={t('আহ্বান রক্তদান সংস্থা — হোমে ফিরুন')} className="auth-brand" to="/">
           <img alt="" height="48" src="/images/ahoban-logo.png" width="48" />
-          <span><strong>আহ্বান</strong><small>রক্তদান সংস্থা</small></span>
+          <span><strong>{t('আহ্বান')}</strong><small>{t('রক্তদান সংস্থা')}</small></span>
         </Link>
         <div className="auth-heading">
           <span className="auth-eyebrow">{eyebrow}</span>
@@ -15,7 +17,7 @@ function AuthLayout({ children, eyebrow, subtitle, title }) {
         </div>
         {children}
       </section>
-      <p className="auth-footer">স্বেচ্ছায় রক্তদান, মানবতার বন্ধন</p>
+      <p className="auth-footer">{t('স্বেচ্ছায় রক্তদান, মানবতার বন্ধন')}</p>
     </main>
   )
 }

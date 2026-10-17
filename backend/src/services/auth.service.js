@@ -4,6 +4,7 @@ const mongoose = require('mongoose')
 const User = require('../models/User')
 const HttpError = require('../errors/http-error')
 const { isExperienceModerator } = require('../config/experience-moderators')
+const { isAvailableToDonate } = require('../utils/donation-eligibility')
 
 const PASSWORD_ROUNDS = 12
 
@@ -20,12 +21,19 @@ function toPublicUser(user) {
     fullName: user.fullName,
     email: user.email,
     phone: user.phone,
+    whatsappNumber: user.whatsappNumber || '',
     bloodGroup: user.bloodGroup,
     division: user.division,
     district: user.district,
+    upazila: user.upazila || '',
     location: user.location,
-    isDonorAvailable: user.isDonorAvailable,
+    lastDonationDate: user.lastDonationDate || null,
+    previousBloodDonations: user.previousBloodDonations || 0,
+    latitude: user.latitude ?? null,
+    longitude: user.longitude ?? null,
+    isAvailableToDonate: isAvailableToDonate(user.lastDonationDate),
     isSearchable: user.isSearchable,
+    isContactPublic: user.isContactPublic,
     profilePhotoUrl: user.profilePhotoUrl || '',
     createdAt: user.createdAt,
     isExperienceModerator: isExperienceModerator(user),

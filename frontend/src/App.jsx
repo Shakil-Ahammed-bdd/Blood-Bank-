@@ -10,6 +10,8 @@ import DonorProfilePage from './pages/DonorProfilePage'
 import Navbar from './components/Navbar'
 import ProfilePage from './pages/ProfilePage'
 import DonorExperiences from './components/landing/DonorExperiences'
+import DonorLeaderboard from './components/landing/DonorLeaderboard'
+import { LanguageProvider } from './contexts/LanguageProvider'
 
 function LandingPage() {
   return (
@@ -47,6 +49,15 @@ function DonorExperiencesRoute() {
   )
 }
 
+function TopDonorsRoute() {
+  return (
+    <AppLayout>
+      <Navbar />
+      <DonorLeaderboard />
+    </AppLayout>
+  )
+}
+
 function AuthenticationRoute({ children }) {
   return (
     <AppLayout>
@@ -67,23 +78,26 @@ function UserProfileRoute() {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<LandingPage />} path="/" />
-          <Route element={<AuthenticationRoute><RegisterPage /></AuthenticationRoute>} path="/register" />
-          <Route element={<AuthenticationRoute><LoginPage /></AuthenticationRoute>} path="/login" />
-          <Route element={<DonorDirectoryRoute />} path="/donors" />
-          <Route element={<DonorProfileRoute />} path="/donors/:id" />
-          <Route element={<DonorExperiencesRoute />} path="/donor-experiences" />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<UserProfileRoute />} path="/profile" />
-            <Route element={<Navigate replace to="/profile" />} path="/dashboard" />
-          </Route>
-          <Route element={<Navigate replace to="/" />} path="*" />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<LandingPage />} path="/" />
+            <Route element={<AuthenticationRoute><RegisterPage /></AuthenticationRoute>} path="/register" />
+            <Route element={<AuthenticationRoute><LoginPage /></AuthenticationRoute>} path="/login" />
+            <Route element={<DonorDirectoryRoute />} path="/donors" />
+            <Route element={<DonorProfileRoute />} path="/donors/:id" />
+            <Route element={<DonorExperiencesRoute />} path="/donor-experiences" />
+            <Route element={<TopDonorsRoute />} path="/top-donors" />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<UserProfileRoute />} path="/profile" />
+              <Route element={<Navigate replace to="/profile" />} path="/dashboard" />
+            </Route>
+            <Route element={<Navigate replace to="/" />} path="*" />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </LanguageProvider>
   )
 }
 
